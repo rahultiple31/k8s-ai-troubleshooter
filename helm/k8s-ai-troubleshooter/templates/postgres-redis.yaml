@@ -1,0 +1,99 @@
+{{- if .Values.postgres.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: k8s-ai-postgres-secret
+  namespace: {{ include "k8s-ai-troubleshooter.namespace" . }}
+type: Opaque
+stringData:
+  POSTGRES_DB: {{ .Values.postgres.database | quote }}
+  POSTGRES_USER: {{ .Values.postgres.username | quote }}
+  POSTGRES_PASSWORD: {{ .Values.postgres.password | quote }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: k8s-ai-postgres
+  namespace: {{ include "k8s-ai-troubleshooter.namespace" . }}
+spec:
+  serviceName: k8s-ai-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: k8s-ai-postgres
+  template:
+    metadata:
+      labels:
+        app: k8s-ai-postgres
+    spec:
+      containers:
+      - name: postgres
+        image: {{ .Values.postgres.image }}
+        ports:
+        - containerPort: 5432
+        envFrom:
+        - secretRef:
+            name: k8s-ai-postgres-secret
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+        resources:
+          {{- toYaml .Values.postgres.resources | nindent 10 }}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: {{ .Values.postgres.storage }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: k8s-ai-postgres
+  namespace: {{ include "k8s-ai-troubleshooter.namespace" . }}
+spec:
+  selector:
+    app: k8s-ai-postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+{{- end }}
+{{- if .Values.redis.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-ai-redis
+  namespace: {{ include "k8s-ai-troubleshooter.namespace" . }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: k8s-ai-redis
+  template:
+    metadata:
+      labels:
+        app: k8s-ai-redis
+    spec:
+      containers:
+      - name: redis
+        image: {{ .Values.redis.image }}
+        ports:
+        - containerPort: 6379
+        resources:
+          {{- toYaml .Values.redis.resources | nindent 10 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: k8s-ai-redis
+  namespace: {{ include "k8s-ai-troubleshooter.namespace" . }}
+spec:
+  selector:
+    app: k8s-ai-redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+{{- end }}

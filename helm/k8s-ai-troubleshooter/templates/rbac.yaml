@@ -1,0 +1,47 @@
+{{- if .Values.rbac.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.rbac.serviceAccountName }}
+  namespace: {{ include "k8s-ai-troubleshooter.namespace" . }}
+  labels:
+    {{- include "k8s-ai-troubleshooter.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "k8s-ai-troubleshooter.fullname" . }}-reader
+  labels:
+    {{- include "k8s-ai-troubleshooter.labels" . | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/log", "pods/status", "nodes", "nodes/status", "services", "endpoints", "events", "persistentvolumes", "persistentvolumeclaims", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets", "daemonsets", "statefulsets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses", "networkpolicies"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["pods", "nodes"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "k8s-ai-troubleshooter.fullname" . }}-reader
+  labels:
+    {{- include "k8s-ai-troubleshooter.labels" . | nindent 4 }}
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.rbac.serviceAccountName }}
+  namespace: {{ include "k8s-ai-troubleshooter.namespace" . }}
+roleRef:
+  kind: ClusterRole
+  name: {{ include "k8s-ai-troubleshooter.fullname" . }}-reader
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

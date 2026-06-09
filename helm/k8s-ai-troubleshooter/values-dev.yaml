@@ -1,0 +1,18 @@
+namespaceOverride: k8s-ai
+
+backend:
+  image:
+    repository: ghcr.io/YOUR_GITHUB_USERNAME/k8s-ai-backend
+    tag: latest
+    pullPolicy: Always
+  openai:
+    existingSecret: k8s-ai-secret
+
+frontend:
+  image:
+    repository: ghcr.io/YOUR_GITHUB_USERNAME/k8s-ai-frontend
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: NodePort
+    nodePort: 30080

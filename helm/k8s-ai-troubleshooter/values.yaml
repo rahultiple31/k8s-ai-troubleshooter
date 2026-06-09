@@ -1,0 +1,77 @@
+namespaceOverride: ""
+
+imagePullSecrets: []
+
+backend:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/YOUR_GITHUB_USERNAME/k8s-ai-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+  env:
+    PROMETHEUS_URL: "http://prometheus-server.monitoring.svc.cluster.local"
+    LOKI_URL: "http://loki-gateway.monitoring.svc.cluster.local"
+    REDIS_URL: "redis://k8s-ai-redis:6379/0"
+    DATABASE_URL: "postgresql://k8s_ai:k8s_ai_password@k8s-ai-postgres:5432/k8s_ai"
+  openai:
+    existingSecret: ""
+    secretName: k8s-ai-secret
+    apiKey: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+frontend:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/YOUR_GITHUB_USERNAME/k8s-ai-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: NodePort
+    port: 80
+    nodePort: 30080
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+rbac:
+  create: true
+  serviceAccountName: k8s-ai-sa
+
+postgres:
+  enabled: true
+  image: postgres:16-alpine
+  database: k8s_ai
+  username: k8s_ai
+  password: k8s_ai_password
+  storage: 5Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+redis:
+  enabled: true
+  image: redis:7-alpine
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
