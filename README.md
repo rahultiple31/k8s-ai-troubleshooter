@@ -85,9 +85,12 @@ npm run dev
 ./scripts/build-images.sh
 ```
 
-## Kubernetes Deploy
+## ArgoCD Deployment
 
-Update your OpenAI key first:
+ArgoCD should sync this application from the Helm chart in
+`helm/k8s-ai-troubleshooter` or the manifests in `k8s/`.
+
+Create the namespace and OpenAI secret in the cluster before syncing:
 
 ```bash
 kubectl create namespace k8s-ai
@@ -95,12 +98,6 @@ kubectl create secret generic k8s-ai-secret \
   -n k8s-ai \
   --from-literal=OPENAI_API_KEY='your-api-key' \
   --dry-run=client -o yaml | kubectl apply -f -
-```
-
-Then deploy:
-
-```bash
-./scripts/deploy.sh
 ```
 
 Access UI:
@@ -139,59 +136,33 @@ curl -X POST http://localhost:8000/api/ai/troubleshoot \
 - Add Redis background workers
 - Add Helm chart
 - Add multi-cluster support
-- Add GitOps deployment with Argo CD
+- Manage production deployment with ArgoCD
 
 ---
 
-## GitHub Actions + Helm Deployment
+## GitHub Actions + ArgoCD
 
-This project includes a GitHub Actions pipeline and Helm chart for production-style deployment.
+This project includes a GitHub Actions pipeline that builds and pushes Docker
+images. ArgoCD handles deployment by syncing the chart or manifests from Git.
 
 ### Added files
 
 ```bash
-.github/workflows/build-and-deploy-helm.yml
+.github/workflows/build-images.yml
 helm/k8s-ai-troubleshooter/Chart.yaml
 helm/k8s-ai-troubleshooter/values.yaml
 helm/k8s-ai-troubleshooter/values-dev.yaml
 helm/k8s-ai-troubleshooter/templates/
-scripts/deploy-helm.sh
 ```
 
-### Required GitHub Secrets
+### GitHub Secrets
 
-Go to:
-
-```text
-GitHub Repository → Settings → Secrets and variables → Actions → New repository secret
-```
-
-Create these secrets:
+No cluster deployment secret is required for this workflow. GitHub Actions uses
+the built-in `GITHUB_TOKEN` to push images to GHCR.
 
 | Secret Name | Use |
 |---|---|
-| KUBE_CONFIG | Base64 encoded kubeconfig file |
-| OPENAI_API_KEY | OpenAI API key for AI troubleshooting |
-
-### Create KUBE_CONFIG Secret
-
-Run this command from your local machine where kubectl is already configured:
-
-```bash
-cat ~/.kube/config | base64 -w 0
-```
-
-Copy the output and save it as GitHub secret:
-
-```text
-KUBE_CONFIG
-```
-
-For macOS:
-
-```bash
-cat ~/.kube/config | base64
-```
+| OPENAI_API_KEY | Optional only if a separate secret automation workflow uses it |
 
 ### GitHub Container Registry
 
@@ -206,53 +177,14 @@ ghcr.io/<github-username>/k8s-ai-frontend:<commit-sha>
 
 ```text
 Code Push / Manual Run
-        ↓
+        |
 Checkout Code
-        ↓
+        |
 Build Backend Docker Image
-        ↓
+        |
 Build Frontend Docker Image
-        ↓
+        |
 Push Images to GHCR
-        ↓
-Configure kubeconfig
-        ↓
-Create Namespace
-        ↓
-Create OpenAI Secret
-        ↓
-Helm Lint
-        ↓
-Helm Upgrade Install
-        ↓
-Check Pod and Service Status
-```
-
-### Manual Helm Deployment
-
-```bash
-export NAMESPACE=k8s-ai
-export BACKEND_IMAGE=ghcr.io/YOUR_GITHUB_USERNAME/k8s-ai-backend
-export FRONTEND_IMAGE=ghcr.io/YOUR_GITHUB_USERNAME/k8s-ai-frontend
-export IMAGE_TAG=latest
-export OPENAI_API_KEY="your-api-key"
-
-./scripts/deploy-helm.sh
-```
-
-### Direct Helm Command
-
-```bash
-helm upgrade --install k8s-ai-troubleshooter ./helm/k8s-ai-troubleshooter \
-  --namespace k8s-ai \
-  --create-namespace \
-  --set namespaceOverride=k8s-ai \
-  --set backend.image.repository=ghcr.io/YOUR_GITHUB_USERNAME/k8s-ai-backend \
-  --set backend.image.tag=latest \
-  --set backend.openai.existingSecret=k8s-ai-secret \
-  --set frontend.image.repository=ghcr.io/YOUR_GITHUB_USERNAME/k8s-ai-frontend \
-  --set frontend.image.tag=latest \
-  --wait --timeout 10m
 ```
 
 ### Check Deployment
@@ -277,22 +209,10 @@ http://localhost:8080
 
 ### Upgrade Application
 
-Push code to `main` or run the workflow manually from GitHub Actions. The pipeline will build new images and run:
-
-```bash
-helm upgrade --install
-```
+Push code to `main` or run the workflow manually from GitHub Actions. The
+pipeline will build and publish new images, and ArgoCD will handle the cluster
+sync from Git.
 
 ### Rollback
 
-```bash
-helm history k8s-ai-troubleshooter -n k8s-ai
-helm rollback k8s-ai-troubleshooter 1 -n k8s-ai
-```
-
-### Uninstall
-
-```bash
-helm uninstall k8s-ai-troubleshooter -n k8s-ai
-kubectl delete namespace k8s-ai
-```
+Rollback through ArgoCD or revert the Git change that ArgoCD synced.

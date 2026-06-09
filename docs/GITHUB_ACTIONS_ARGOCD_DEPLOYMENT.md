@@ -1,25 +1,26 @@
-# GitHub Actions and Helm Deployment Strategy
+# GitHub Actions and ArgoCD Deployment Strategy
 
 ## Goal
 
-Deploy the AI Kubernetes Troubleshooter using a CI/CD pipeline and Helm chart.
+Build and publish the AI Kubernetes Troubleshooter images with GitHub Actions.
+Deploy the application with ArgoCD by syncing the Helm chart or Kubernetes
+manifests from Git.
 
 ## Pipeline Responsibilities
 
 1. Build backend Docker image.
 2. Build frontend Docker image.
 3. Push both images to GitHub Container Registry.
-4. Connect to Kubernetes using kubeconfig from GitHub Secrets.
-5. Create namespace and OpenAI secret.
-6. Deploy or upgrade the application using Helm.
-7. Validate pods and services.
+4. Leave cluster deployment to ArgoCD.
 
 ## GitHub Secrets
 
+No cluster deployment secret is required for this workflow. GitHub Actions uses
+the built-in `GITHUB_TOKEN` to push images to GHCR.
+
 | Secret | Description |
 |---|---|
-| `KUBE_CONFIG` | Base64 encoded kubeconfig file |
-| `OPENAI_API_KEY` | OpenAI API key |
+| `OPENAI_API_KEY` | Optional only if separate secret automation uses it |
 
 ## Helm Chart Components
 
@@ -61,7 +62,7 @@ Use managed PostgreSQL like AWS RDS for production.
 ## Production Recommendations
 
 - Use AWS ECR instead of GHCR if running on EKS.
-- Use IRSA instead of static kubeconfig for secure AWS access.
+- Use ArgoCD cluster credentials instead of CI kubeconfig deployment access.
 - Use External Secrets Operator or Sealed Secrets for secrets.
 - Use Ingress Controller instead of NodePort.
 - Use managed PostgreSQL and Redis.
