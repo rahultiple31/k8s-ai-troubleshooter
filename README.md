@@ -118,6 +118,45 @@ kubectl delete deployment k8s-ai-backend k8s-ai-frontend -n argocd --ignore-not-
 The chart now uses public Docker Hub images by default, so no image pull secret
 is required unless you make those Docker Hub repositories private.
 
+For local Kubernetes clusters without a default StorageClass, PostgreSQL uses a
+node `hostPath` volume by default and does not create a PVC:
+
+```yaml
+postgres:
+  persistence:
+    enabled: true
+    type: hostPath
+    hostPath: /var/lib/k8s-ai/postgres
+    hostPathType: DirectoryOrCreate
+```
+
+For a cloud cluster with dynamic storage, enable persistence and set a
+StorageClass if needed:
+
+```yaml
+postgres:
+  persistence:
+    enabled: true
+    type: pvc
+    storage: 5Gi
+    storageClassName: <storage-class-name>
+```
+
+If an older sync already created an unbound PostgreSQL PVC, delete the old
+StatefulSet/PVC after syncing the updated chart. The chart will recreate
+PostgreSQL as a Deployment using `hostPath`:
+
+```bash
+kubectl delete statefulset k8s-ai-postgres -n k8s-ai --ignore-not-found
+kubectl delete pvc data-k8s-ai-postgres-0 -n k8s-ai --ignore-not-found
+```
+
+On the local node, data is stored under:
+
+```text
+/var/lib/k8s-ai/postgres
+```
+
 Access UI:
 
 ```bash

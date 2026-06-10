@@ -18,3 +18,10 @@ frontend:
   service:
     type: NodePort
     nodePort: 30080
+
+postgres:
+  persistence:
+    enabled: true
+    type: hostPath
+    hostPath: /var/lib/k8s-ai/postgres
+    hostPathType: DirectoryOrCreate

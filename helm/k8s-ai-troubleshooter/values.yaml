@@ -56,7 +56,13 @@ postgres:
   database: k8s_ai
   username: k8s_ai
   password: k8s_ai_password
-  storage: 5Gi
+  persistence:
+    enabled: true
+    type: hostPath
+    hostPath: /var/lib/k8s-ai/postgres
+    hostPathType: DirectoryOrCreate
+    storage: 5Gi
+    storageClassName: ""
   resources:
     requests:
       cpu: 100m

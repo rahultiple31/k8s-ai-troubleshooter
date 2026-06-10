@@ -64,6 +64,46 @@ different, update `DOCKERHUB_NAMESPACE` in the workflow and override
 `backend.image.repository` and `frontend.image.repository` in ArgoCD or in a
 values file.
 
+## Local Cluster Storage
+
+Local clusters often do not have a default StorageClass. PostgreSQL uses a
+node `hostPath` volume by default and avoids unbound PVCs:
+
+```yaml
+postgres:
+  persistence:
+    enabled: true
+    type: hostPath
+    hostPath: /var/lib/k8s-ai/postgres
+    hostPathType: DirectoryOrCreate
+```
+
+For cloud clusters with dynamic storage, enable persistence:
+
+```yaml
+postgres:
+  persistence:
+    enabled: true
+    type: pvc
+    storage: 5Gi
+    storageClassName: <storage-class-name>
+```
+
+If an older sync already created an unbound PostgreSQL PVC, delete the old
+StatefulSet/PVC after syncing the updated chart. The chart will recreate
+PostgreSQL as a Deployment using `hostPath`:
+
+```bash
+kubectl delete statefulset k8s-ai-postgres -n k8s-ai --ignore-not-found
+kubectl delete pvc data-k8s-ai-postgres-0 -n k8s-ai --ignore-not-found
+```
+
+On the local node, data is stored under:
+
+```text
+/var/lib/k8s-ai/postgres
+```
+
 ## Helm Chart Components
 
 | Template | Purpose |

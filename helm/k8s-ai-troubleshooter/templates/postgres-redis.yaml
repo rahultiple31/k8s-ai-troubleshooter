@@ -11,12 +11,14 @@ stringData:
   POSTGRES_PASSWORD: {{ .Values.postgres.password | quote }}
 ---
 apiVersion: apps/v1
-kind: StatefulSet
+kind: {{ ternary "StatefulSet" "Deployment" (and .Values.postgres.persistence.enabled (eq .Values.postgres.persistence.type "pvc")) }}
 metadata:
   name: k8s-ai-postgres
   namespace: {{ include "k8s-ai-troubleshooter.namespace" . }}
 spec:
+  {{- if and .Values.postgres.persistence.enabled (eq .Values.postgres.persistence.type "pvc") }}
   serviceName: k8s-ai-postgres
+  {{- end }}
   replicas: 1
   selector:
     matchLabels:
@@ -39,14 +41,30 @@ spec:
           mountPath: /var/lib/postgresql/data
         resources:
           {{- toYaml .Values.postgres.resources | nindent 10 }}
+      {{- if or (not .Values.postgres.persistence.enabled) (eq .Values.postgres.persistence.type "hostPath") }}
+      volumes:
+      - name: data
+        {{- if .Values.postgres.persistence.enabled }}
+        hostPath:
+          path: {{ .Values.postgres.persistence.hostPath | quote }}
+          type: {{ .Values.postgres.persistence.hostPathType | quote }}
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+      {{- end }}
+  {{- if and .Values.postgres.persistence.enabled (eq .Values.postgres.persistence.type "pvc") }}
   volumeClaimTemplates:
   - metadata:
       name: data
     spec:
       accessModes: ["ReadWriteOnce"]
+      {{- if .Values.postgres.persistence.storageClassName }}
+      storageClassName: {{ .Values.postgres.persistence.storageClassName | quote }}
+      {{- end }}
       resources:
         requests:
-          storage: {{ .Values.postgres.storage }}
+          storage: {{ .Values.postgres.persistence.storage }}
+  {{- end }}
 ---
 apiVersion: v1
 kind: Service
