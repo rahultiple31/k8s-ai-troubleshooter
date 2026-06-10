@@ -982,7 +982,7 @@ button{
 .terminal-controls{
   min-width:0;
   display:grid;
-  grid-template-columns:minmax(0,.9fr) minmax(260px,1.1fr);
+  grid-template-columns:1fr;
   gap:10px;
   padding:12px;
   border-top:1px solid rgba(255,255,255,.08);
@@ -1013,16 +1013,7 @@ button{
   background:#0e2938;
 }
 
-.manifest-box{
-  display:grid;
-  gap:6px;
-  color:#9fc0ca;
-  font-size:11px;
-  font-weight:850;
-  text-transform:uppercase;
-}
-
-.manifest-box textarea,.terminal-input-row textarea{
+.terminal-input-row textarea{
   width:100%;
   min-width:0;
   border:1px solid rgba(255,255,255,.1);
@@ -1035,18 +1026,11 @@ button{
   line-height:1.45;
 }
 
-.manifest-box textarea{
-  min-height:118px;
-  resize:vertical;
-  padding:10px;
-}
-
 .terminal-input-row{
   display:grid;
   grid-template-columns:1fr 44px;
   gap:8px;
   align-items:end;
-  grid-column:1 / -1;
 }
 
 .terminal-input-row textarea{

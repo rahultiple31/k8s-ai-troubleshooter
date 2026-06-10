@@ -167,8 +167,8 @@ function App(){
     setPodName(value);
   }
 
-  async function askAI(){
-    const submittedQuestion=question.trim();
+  async function askAI(nextQuestion){
+    const submittedQuestion=(typeof nextQuestion==='string' ? nextQuestion : question).trim();
     if(!submittedQuestion) return;
     const userMessage={role:'user',content:{question:submittedQuestion,namespace,pod_name:podName}};
     setMessages(current=>[...current,userMessage]);
@@ -273,7 +273,7 @@ function App(){
           <TerminalPanel
             namespace={namespace}
             podName={podName}
-            onAskFix={(commandResult)=>setQuestion(buildTerminalFixPrompt(commandResult, namespace, podName))}
+            onAskFix={(commandResult)=>askAI(buildTerminalFixPrompt(commandResult, namespace, podName))}
           />
           <ChatPanel
             messages={messages}
@@ -463,7 +463,6 @@ function EventsPanel({events,lastRefresh}){
 
 function TerminalPanel({namespace,podName,onAskFix}){
   const [command,setCommand]=useState(`kubectl get pods -n ${namespace || 'default'}`);
-  const [stdin,setStdin]=useState('');
   const [running,setRunning]=useState(false);
   const [history,setHistory]=useState([
     {
@@ -480,7 +479,7 @@ function TerminalPanel({namespace,podName,onAskFix}){
     podName ? `kubectl logs ${podName} -n ${namespace || 'default'} --tail=200` : 'kubectl get nodes -o wide',
     `kubectl get events -n ${namespace || 'default'} --sort-by=.lastTimestamp`,
     'kubectl get deployments -A',
-    'kubectl apply -f -',
+    'kubectl rollout restart deployment <name> -n ' + (namespace || 'default'),
   ];
 
   useEffect(()=>{
@@ -501,7 +500,7 @@ function TerminalPanel({namespace,podName,onAskFix}){
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
           command:trimmed,
-          stdin:trimmed === 'kubectl apply -f -' ? stdin : '',
+          stdin:'',
         }),
       });
       const data=await response.json();
@@ -546,7 +545,7 @@ function TerminalPanel({namespace,podName,onAskFix}){
               {item.exit_code !== null && <small>exit code {item.exit_code}</small>}
               {item.exit_code !== null && item.command !== 'kubectl terminal ready' && <button type="button" onClick={()=>onAskFix(item)}>
                 <MessageSquareText size={14}/>
-                Ask AI to fix
+                Fix in chat
               </button>}
             </div>
           </div>
@@ -560,15 +559,6 @@ function TerminalPanel({namespace,podName,onAskFix}){
             <button key={item} type="button" onClick={()=>setCommand(item)}>{item}</button>
           )}
         </div>
-
-        <label className="manifest-box">
-          <span>Manifest input for kubectl apply -f -</span>
-          <textarea
-            value={stdin}
-            onChange={event=>setStdin(event.target.value)}
-            placeholder={'apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: example\n  namespace: ' + (namespace || 'default')}
-          />
-        </label>
 
         <div className="terminal-input-row">
           <textarea
