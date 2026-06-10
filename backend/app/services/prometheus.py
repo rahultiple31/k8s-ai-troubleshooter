@@ -68,29 +68,32 @@ class PrometheusService:
     async def cluster_dashboard(self):
         errors = {}
         queries = {
+            "cluster_cpu": self.query('avg(100 - (avg by(instance)(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100))'),
+            "cluster_memory": self.query('100 * (1 - (sum(node_memory_MemAvailable_bytes) / sum(node_memory_MemTotal_bytes)))'),
+            "cluster_storage": self.query(
+                '100 * (1 - (sum(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay",mountpoint!~"/run.*|/var/lib/kubelet/pods.*"}) / sum(node_filesystem_size_bytes{fstype!~"tmpfs|overlay",mountpoint!~"/run.*|/var/lib/kubelet/pods.*"})))'
+            ),
             "node_cpu": self.query('100 - (avg by(instance)(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)'),
             "node_memory": self.query('(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100'),
             "node_storage": self.query(
-                '100 - ((node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} * 100) / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"})'
-            ),
-            "network_receive": self.query(
-                'sum by(instance)(rate(node_network_receive_bytes_total{device!~"lo|veth.*|cali.*|flannel.*|docker.*"}[5m]))'
-            ),
-            "network_transmit": self.query(
-                'sum by(instance)(rate(node_network_transmit_bytes_total{device!~"lo|veth.*|cali.*|flannel.*|docker.*"}[5m]))'
+                'max by(instance)(100 - ((node_filesystem_avail_bytes{fstype!~"tmpfs|overlay",mountpoint!~"/run.*|/var/lib/kubelet/pods.*"} * 100) / node_filesystem_size_bytes{fstype!~"tmpfs|overlay",mountpoint!~"/run.*|/var/lib/kubelet/pods.*"}))'
             ),
             "pod_cpu": self.query('sum by(namespace,pod)(rate(container_cpu_usage_seconds_total{container!="",pod!=""}[5m]))'),
             "pod_memory": self.query('sum by(namespace,pod)(container_memory_working_set_bytes{container!="",pod!=""})'),
+            "pod_storage": self.query('sum by(namespace,pod)(container_fs_usage_bytes{container!="",pod!=""})'),
             "pod_restarts": self.query('sum by(namespace,pod)(increase(kube_pod_container_status_restarts_total[15m]))'),
-            "node_cpu_range": self.query_range('100 - (avg by(instance)(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)'),
-            "node_memory_range": self.query_range('(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100'),
-            "network_receive_range": self.query_range(
-                'sum by(instance)(rate(node_network_receive_bytes_total{device!~"lo|veth.*|cali.*|flannel.*|docker.*"}[5m]))'
+            "http_errors_code": self.query(
+                'sum by(namespace,service,code)(rate({__name__=~"http_requests_total|http_server_requests_seconds_count|nginx_ingress_controller_requests|traefik_service_requests_total|istio_requests_total",code=~"4..|5.."}[5m]))'
             ),
-            "network_transmit_range": self.query_range(
-                'sum by(instance)(rate(node_network_transmit_bytes_total{device!~"lo|veth.*|cali.*|flannel.*|docker.*"}[5m]))'
+            "http_errors_status": self.query(
+                'sum by(namespace,service,status)(rate({__name__=~"http_requests_total|http_server_requests_seconds_count|nginx_ingress_controller_requests|traefik_service_requests_total|istio_requests_total",status=~"4..|5.."}[5m]))'
             ),
-            "pod_restarts_range": self.query_range('sum(increase(kube_pod_container_status_restarts_total[15m]))'),
+            "https_errors_code": self.query(
+                'sum by(namespace,service,code)(rate({__name__=~"http_requests_total|http_server_requests_seconds_count|nginx_ingress_controller_requests|traefik_service_requests_total|istio_requests_total",scheme="https",code=~"4..|5.."}[5m]))'
+            ),
+            "https_errors_status": self.query(
+                'sum by(namespace,service,status)(rate({__name__=~"http_requests_total|http_server_requests_seconds_count|nginx_ingress_controller_requests|traefik_service_requests_total|istio_requests_total",scheme="https",status=~"4..|5.."}[5m]))'
+            ),
         }
         values = await asyncio.gather(*(safe_call(name, query, errors) for name, query in queries.items()))
         return {
