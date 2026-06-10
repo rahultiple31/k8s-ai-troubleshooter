@@ -123,3 +123,15 @@ def events(namespace: str | None = None):
 @router.get("/prometheus/node-memory")
 async def node_memory():
     return await PrometheusService().node_memory()
+
+@router.get("/prometheus/node-cpu")
+async def node_cpu():
+    return await PrometheusService().node_cpu()
+
+@router.get("/prometheus/pod-restarts")
+async def pod_restarts():
+    return await PrometheusService().pod_restarts()
+
+@router.get("/prometheus/coredns")
+async def coredns_dashboard():
+    return await PrometheusService().coredns_dashboard()
