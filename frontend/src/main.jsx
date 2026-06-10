@@ -162,14 +162,14 @@ function App(){
         <div className="brand-mark"><Bot size={24}/></div>
         <div>
           <h1>K8s AI</h1>
-          <p>ArgoCD style ops chat</p>
+          <p>Cluster support console</p>
         </div>
       </div>
 
       <nav className="nav">
         <a className="active"><LayoutDashboard size={18}/> Applications</a>
         <a><MessageSquareText size={18}/> AI Troubleshoot</a>
-        <a><Network size={18}/> Cluster Graph</a>
+        <a><Network size={18}/> Resource Tree</a>
         <a><History size={18}/> Events</a>
       </nav>
 
@@ -246,7 +246,7 @@ function App(){
           <div className="panel-heading">
             <div>
               <span className="eyebrow">Live resources</span>
-              <h3>ArgoCD resource graph</h3>
+              <h3>Resource tree</h3>
             </div>
             <span className="time">{lastRefresh ? lastRefresh.toLocaleTimeString() : 'loading'}</span>
           </div>
