@@ -569,6 +569,31 @@ button{
   padding:0 12px;
 }
 
+.composer-suggestions{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:7px;
+  margin-bottom:10px;
+}
+
+.composer-suggestions button{
+  min-height:34px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:#f8fbfc;
+  color:#344654;
+  padding:6px 8px;
+  font-size:11px;
+  font-weight:800;
+  text-align:left;
+  overflow-wrap:anywhere;
+}
+
+.composer-suggestions button:hover{
+  border-color:#9fc0ca;
+  background:#eef7fb;
+}
+
 .prompt-row{
   display:grid;
   grid-template-columns:1fr 46px;
@@ -1105,7 +1130,7 @@ button{
   .chat-panel,.ops-panel,.events-panel,.terminal-panel{
     min-height:560px;
   }
-  .target-row,.prompt-row{
+  .target-row,.prompt-row,.composer-suggestions{
     grid-template-columns:1fr;
   }
   .prompt-row button{

@@ -355,10 +355,7 @@ function ChatPanel({messages,loading,namespace,podName,question,setQuestion,upda
     'Fix CrashLoopBackOff for this pod',
     'Fix ImagePullBackOff or registry secret issue',
     'Fix Pending pod caused by PVC or storage',
-    'Fix failed readiness or liveness probe',
-    'Fix OOMKilled or memory limit issue',
     'Fix service or endpoint connectivity',
-    'Check healthy status and give verify commands',
   ];
 
   useEffect(()=>{
@@ -407,6 +404,11 @@ function ChatPanel({messages,loading,namespace,podName,question,setQuestion,upda
       <div className="target-row">
         <input value={namespace} onChange={e=>updateNamespace(e.target.value)} placeholder="namespace" />
         <input value={podName} onChange={e=>updatePodName(e.target.value)} placeholder="pod name" />
+      </div>
+      <div className="composer-suggestions">
+        {promptIdeas.map(prompt=>
+          <button key={prompt} type="button" onClick={()=>setQuestion(buildFixPrompt(prompt, namespace, podName))}>{prompt}</button>
+        )}
       </div>
       <div className="prompt-row">
         <textarea
@@ -478,8 +480,6 @@ function TerminalPanel({namespace,podName,onAskFix}){
     podName ? `kubectl describe pod ${podName} -n ${namespace || 'default'}` : `kubectl get events -n ${namespace || 'default'} --sort-by=.lastTimestamp`,
     podName ? `kubectl logs ${podName} -n ${namespace || 'default'} --tail=200` : 'kubectl get nodes -o wide',
     `kubectl get events -n ${namespace || 'default'} --sort-by=.lastTimestamp`,
-    'kubectl get deployments -A',
-    'kubectl rollout restart deployment <name> -n ' + (namespace || 'default'),
   ];
 
   useEffect(()=>{
