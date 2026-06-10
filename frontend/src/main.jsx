@@ -55,8 +55,8 @@ function App(){
     {
       role:'assistant',
       content:{
-        reason:'Select a pod and ask a Kubernetes question.',
-        fix:'I will inspect pod status, events, logs, nodes, and PVCs from the backend.',
+        reason:'Ask a Kubernetes troubleshooting question.',
+        fix:'I will inspect live pod status, events, logs, nodes, PVCs, and then ground the answer with Kubernetes docs.',
         commands:['kubectl get pods -A','kubectl get events -A --sort-by=.lastTimestamp'],
         confidence:100,
       },
@@ -168,15 +168,17 @@ function App(){
   }
 
   async function askAI(){
-    if(!question.trim()) return;
-    const userMessage={role:'user',content:{question,namespace,pod_name:podName}};
+    const submittedQuestion=question.trim();
+    if(!submittedQuestion) return;
+    const userMessage={role:'user',content:{question:submittedQuestion,namespace,pod_name:podName}};
     setMessages(current=>[...current,userMessage]);
+    setQuestion('');
     setLoading(true);
     try {
       const res=await fetch(`${API}/ai/troubleshoot`, {
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({question, namespace, pod_name:podName}),
+        body:JSON.stringify({question:submittedQuestion, namespace, pod_name:podName}),
       });
       const data=await res.json();
       setMessages(current=>[
@@ -303,23 +305,56 @@ function HealthTile({label,value,icon,tone}){
 }
 
 function ChatPanel({messages,loading,namespace,podName,question,setQuestion,updateNamespace,updatePodName,askAI}){
+  const endRef=useRef(null);
+  const hasUserMessage=messages.some(message=>message.role==='user');
+  const visibleMessages=hasUserMessage ? messages.filter(message=>message.role==='user' || message.content?.ai_explanation || message.content?.error) : [];
+  const promptIdeas=[
+    'Why is this pod not ready?',
+    'Check image pull and registry secret issues',
+    'Find PVC or storage problems',
+    'Explain recent warning events',
+  ];
+
+  useEffect(()=>{
+    endRef.current?.scrollIntoView({behavior:'smooth', block:'end'});
+  },[messages,loading]);
+
+  function handlePromptKeyDown(event){
+    if(event.key==='Enter' && !event.shiftKey){
+      event.preventDefault();
+      askAI();
+    }
+  }
+
   return <section className="chat-panel">
     <div className="panel-heading">
       <div>
         <span className="eyebrow">AI diagnosis</span>
-        <h3>Cluster support chat</h3>
+        <h3>Kubernetes support chat</h3>
       </div>
       <span className="selected-pill">{namespace || '-'} / {podName || 'select pod'}</span>
     </div>
 
     <div className="messages">
-      {messages.map((msg,index)=>
+      {!hasUserMessage && <div className="chat-welcome">
+        <div className="welcome-mark"><Sparkles size={24}/></div>
+        <h3>What Kubernetes issue should I troubleshoot?</h3>
+        <p>Select a pod from the resource tree or type a namespace and pod name. I will use live cluster data, pod events, logs, PVCs, and Kubernetes docs to shape the answer.</p>
+        <div className="prompt-suggestions">
+          {promptIdeas.map(prompt=>
+            <button key={prompt} type="button" onClick={()=>setQuestion(prompt)}>{prompt}</button>
+          )}
+        </div>
+      </div>}
+
+      {visibleMessages.map((msg,index)=>
         <ChatMessage key={`${msg.role}-${index}`} message={msg} />
       )}
       {loading && <div className="message assistant">
         <div className="avatar"><Loader2 className="spin" size={18}/></div>
-        <div className="bubble muted">Analyzing pod logs, events, PVCs, and node status...</div>
+        <div className="bubble muted">Analyzing live cluster data and matching it with Kubernetes troubleshooting guidance...</div>
       </div>}
+      <div ref={endRef} />
     </div>
 
     <div className="composer">
@@ -328,8 +363,13 @@ function ChatPanel({messages,loading,namespace,podName,question,setQuestion,upda
         <input value={podName} onChange={e=>updatePodName(e.target.value)} placeholder="pod name" />
       </div>
       <div className="prompt-row">
-        <textarea value={question} onChange={e=>setQuestion(e.target.value)} placeholder="Ask about pod logs, events, PVC, image pull, CrashLoopBackOff..." />
-        <button onClick={askAI} disabled={loading} title="Analyze issue">
+        <textarea
+          value={question}
+          onChange={e=>setQuestion(e.target.value)}
+          onKeyDown={handlePromptKeyDown}
+          placeholder="Ask about pod logs, events, PVC, image pull, CrashLoopBackOff..."
+        />
+        <button onClick={askAI} disabled={loading || !question.trim()} title="Analyze issue">
           {loading ? <Loader2 className="spin" size={19}/> : <Send size={19}/>}
         </button>
       </div>
@@ -407,13 +447,40 @@ function ChatMessage({message}){
       {content.error ? <p className="error-text">{content.error}</p> : <>
         <h4>{content.reason || 'Analysis result'}</h4>
         {content.fix && <p>{content.fix}</p>}
-        {content.ai_explanation && <pre>{content.ai_explanation}</pre>}
+        {content.ai_explanation && <RichAnswer text={content.ai_explanation} />}
         {Array.isArray(content.commands) && content.commands.length>0 && <div className="commands">
           {content.commands.map((cmd,i)=><code key={i}>{cmd}</code>)}
+        </div>}
+        {Array.isArray(content.sources) && content.sources.length>0 && <div className="source-list">
+          {content.sources.map(source=>
+            <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.title}</a>
+          )}
         </div>}
         {typeof content.confidence !== 'undefined' && <small>Confidence {content.confidence}%</small>}
       </>}
     </div>
+  </div>;
+}
+
+function RichAnswer({text}){
+  const lines=String(text || '').split('\n').filter(line=>line.trim());
+  return <div className="rich-answer">
+    {lines.map((line,index)=>{
+      const trimmed=line.trim();
+      if(trimmed.startsWith('### ')){
+        return <h5 key={index}>{trimmed.slice(4)}</h5>;
+      }
+      if(trimmed.startsWith('## ')){
+        return <h5 key={index}>{trimmed.slice(3)}</h5>;
+      }
+      if(trimmed.startsWith('- `') && trimmed.endsWith('`')){
+        return <code key={index}>{trimmed.slice(3,-1)}</code>;
+      }
+      if(trimmed.startsWith('- ')){
+        return <p key={index} className="answer-bullet">{trimmed.slice(2)}</p>;
+      }
+      return <p key={index}>{trimmed}</p>;
+    })}
   </div>;
 }
 

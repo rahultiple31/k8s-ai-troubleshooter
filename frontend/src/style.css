@@ -323,11 +323,68 @@ button{
 .messages{
   flex:1;
   overflow:auto;
-  padding:22px;
+  padding:24px;
   display:flex;
   flex-direction:column;
   gap:18px;
   background:linear-gradient(180deg,#fff,#fbfcfd);
+}
+
+.chat-welcome{
+  width:min(760px,100%);
+  margin:auto;
+  display:grid;
+  justify-items:center;
+  gap:12px;
+  text-align:center;
+  color:#263746;
+}
+
+.welcome-mark{
+  width:48px;
+  height:48px;
+  display:grid;
+  place-items:center;
+  border-radius:15px;
+  background:#e7f8f3;
+  color:var(--teal);
+  border:1px solid #ccefe7;
+}
+
+.chat-welcome h3{
+  margin:0;
+  font-size:26px;
+  font-weight:760;
+}
+
+.chat-welcome p{
+  max-width:620px;
+  margin:0;
+  color:var(--muted);
+  line-height:1.55;
+}
+
+.prompt-suggestions{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:8px;
+  margin-top:4px;
+}
+
+.prompt-suggestions button{
+  border:1px solid var(--line);
+  background:#fff;
+  color:#344654;
+  border-radius:999px;
+  padding:9px 13px;
+  font-size:13px;
+  box-shadow:0 4px 14px rgba(31,51,73,.06);
+}
+
+.prompt-suggestions button:hover{
+  border-color:#a9c0cf;
+  background:#f8fbfc;
 }
 
 .message{
@@ -397,6 +454,47 @@ button{
   overflow:auto;
 }
 
+.rich-answer{
+  display:grid;
+  gap:8px;
+}
+
+.rich-answer h5{
+  margin:8px 0 0;
+  font-size:13px;
+  color:#17212b;
+}
+
+.rich-answer p{
+  margin:0;
+}
+
+.rich-answer code{
+  display:block;
+  background:#10202a;
+  color:#e7fbff;
+  border-radius:8px;
+  padding:9px 11px;
+  overflow-x:auto;
+  font-size:12px;
+}
+
+.answer-bullet{
+  position:relative;
+  padding-left:16px;
+}
+
+.answer-bullet:before{
+  content:"";
+  position:absolute;
+  left:2px;
+  top:.72em;
+  width:5px;
+  height:5px;
+  border-radius:50%;
+  background:var(--teal);
+}
+
 .commands{
   display:grid;
   gap:8px;
@@ -412,13 +510,36 @@ button{
   overflow-x:auto;
 }
 
+.source-list{
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+  margin-top:12px;
+}
+
+.source-list a{
+  border:1px solid #cfe1eb;
+  color:#1d6f91;
+  background:#f5fbfd;
+  border-radius:999px;
+  padding:6px 9px;
+  font-size:12px;
+  font-weight:800;
+  text-decoration:none;
+}
+
+.source-list a:hover{
+  border-color:#93b5c7;
+  background:#eef7fb;
+}
+
 .error-text{
   color:var(--red)!important;
   font-weight:800;
 }
 
 .composer{
-  padding:16px;
+  padding:14px 16px 16px;
   border-top:1px solid var(--line);
   background:#fff;
 }
@@ -446,20 +567,28 @@ button{
 
 .prompt-row{
   display:grid;
-  grid-template-columns:1fr 48px;
+  grid-template-columns:1fr 46px;
   gap:10px;
   align-items:end;
+  border:1px solid var(--line);
+  background:#fbfdfe;
+  border-radius:18px;
+  padding:8px;
+  box-shadow:0 6px 20px rgba(31,51,73,.08);
 }
 
 .prompt-row textarea{
-  min-height:64px;
+  min-height:46px;
   max-height:160px;
   resize:vertical;
-  padding:12px 14px;
+  padding:10px 12px;
+  border:0;
+  background:transparent;
 }
 
 .prompt-row button{
-  height:48px;
+  width:42px;
+  height:42px;
   border:0;
   border-radius:12px;
   color:#fff;
