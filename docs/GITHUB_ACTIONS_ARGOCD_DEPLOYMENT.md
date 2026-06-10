@@ -28,6 +28,10 @@ the ArgoCD-managed app:
 | `GHCR_PULL_EMAIL` | Email value for the Docker registry secret |
 | `OPENAI_API_KEY` | Optional API key synced to the `k8s-ai-secret` Kubernetes secret |
 
+If any of `KUBECONFIG_B64`, `GHCR_PULL_USERNAME`, `GHCR_PULL_TOKEN`, or
+`GHCR_PULL_EMAIL` is missing, the workflow skips cluster secret setup and only
+builds/pushes images.
+
 ## Cluster Image Pull Secret
 
 If the GHCR packages are private, the workflow creates a pull secret in the
@@ -58,6 +62,9 @@ kubectl create secret docker-registry ghcr-secret \
   --docker-email="$GHCR_PULL_EMAIL" \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
+
+Private GHCR images still require `ghcr-secret` to exist in the `k8s-ai`
+namespace before ArgoCD-created pods can pull them.
 
 ## Helm Chart Components
 

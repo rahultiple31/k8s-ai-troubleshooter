@@ -82,31 +82,40 @@ jobs:
       GHCR_PULL_EMAIL: ${{ secrets.GHCR_PULL_EMAIL }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
-      - name: Validate required deployment secrets
+      - name: Check cluster secret configuration
+        id: cluster_config
         run: |
-          missing=0
+          missing=()
           for name in KUBECONFIG_B64 GHCR_PULL_USERNAME GHCR_PULL_TOKEN GHCR_PULL_EMAIL; do
             if [ -z "${!name}" ]; then
-              echo "::error::GitHub secret ${name} is required to configure the cluster image pull secret."
-              missing=1
+              missing+=("${name}")
             fi
           done
-          exit "${missing}"
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "configured=false" >> "${GITHUB_OUTPUT}"
+            echo "::notice::Skipping cluster secret configuration. Missing GitHub secrets: ${missing[*]}"
+          else
+            echo "configured=true" >> "${GITHUB_OUTPUT}"
+          fi
 
       - name: Set up kubectl
+        if: ${{ steps.cluster_config.outputs.configured == 'true' }}
         uses: azure/setup-kubectl@v4
 
       - name: Configure kubeconfig
+        if: ${{ steps.cluster_config.outputs.configured == 'true' }}
         run: |
           mkdir -p "${HOME}/.kube"
           echo "${KUBECONFIG_B64}" | base64 -d > "${HOME}/.kube/config"
           chmod 600 "${HOME}/.kube/config"
 
       - name: Ensure application namespace exists
+        if: ${{ steps.cluster_config.outputs.configured == 'true' }}
         run: |
           kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Create or update GHCR image pull secret
+        if: ${{ steps.cluster_config.outputs.configured == 'true' }}
         run: |
           kubectl create secret docker-registry "${GHCR_PULL_SECRET_NAME}" \
             -n "${NAMESPACE}" \
@@ -117,7 +126,7 @@ jobs:
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Create or update OpenAI secret
-        if: ${{ env.OPENAI_API_KEY != '' }}
+        if: ${{ steps.cluster_config.outputs.configured == 'true' && env.OPENAI_API_KEY != '' }}
         run: |
           kubectl create secret generic k8s-ai-secret \
             -n "${NAMESPACE}" \

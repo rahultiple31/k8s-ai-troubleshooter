@@ -91,7 +91,8 @@ ArgoCD should sync this application from the Helm chart in
 `helm/k8s-ai-troubleshooter` or the manifests in `k8s/`.
 
 The GitHub Actions workflow can create the namespace and Kubernetes secrets
-before ArgoCD syncs the app. Add these repository secrets in GitHub:
+before ArgoCD syncs the app. Add these repository secrets in GitHub to enable
+that step:
 
 | Secret Name | Use |
 |---|---|
@@ -124,6 +125,11 @@ kubectl create secret docker-registry ghcr-secret \
   --docker-email="$GHCR_PULL_EMAIL" \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
+
+If any of `KUBECONFIG_B64`, `GHCR_PULL_USERNAME`, `GHCR_PULL_TOKEN`, or
+`GHCR_PULL_EMAIL` is missing, the workflow skips cluster secret setup and only
+builds/pushes images. Private GHCR images still require `ghcr-secret` to exist
+in the `k8s-ai` namespace before pods can pull them.
 
 Access UI:
 
@@ -193,6 +199,9 @@ ArgoCD-managed deployments:
 | GHCR_PULL_TOKEN | GitHub token with package read access |
 | GHCR_PULL_EMAIL | Email value for the Docker registry secret |
 | OPENAI_API_KEY | Optional API key synced to the `k8s-ai-secret` Kubernetes secret |
+
+The cluster secret configuration job is skipped when the required Kubernetes
+and GHCR pull secrets are not set, so image builds can still pass.
 
 ### GitHub Container Registry
 
