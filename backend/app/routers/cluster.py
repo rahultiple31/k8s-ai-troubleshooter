@@ -88,6 +88,38 @@ def deployments(namespace: str | None = None):
         "available_replicas": d.status.available_replicas or 0,
     } for d in deployment_list]
 
+@router.get("/events")
+def events(namespace: str | None = None):
+    k8s = get_kubernetes_service()
+    try:
+        event_list = k8s.list_events(namespace)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    def event_time(event):
+        return (
+            getattr(event, "last_timestamp", None)
+            or getattr(event, "event_time", None)
+            or getattr(event, "first_timestamp", None)
+        )
+
+    sorted_events = sorted(
+        event_list,
+        key=lambda event: event_time(event) or event.metadata.creation_timestamp,
+        reverse=True,
+    )
+    return [{
+        "namespace": event.metadata.namespace,
+        "name": event.metadata.name,
+        "type": event.type or "Normal",
+        "reason": event.reason or "Unknown",
+        "message": event.message or "",
+        "count": event.count or 1,
+        "object_kind": event.involved_object.kind if event.involved_object else "",
+        "object_name": event.involved_object.name if event.involved_object else "",
+        "last_timestamp": str(event_time(event) or event.metadata.creation_timestamp or ""),
+    } for event in sorted_events[:100]]
+
 @router.get("/prometheus/node-memory")
 async def node_memory():
     return await PrometheusService().node_memory()

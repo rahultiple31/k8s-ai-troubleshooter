@@ -27,16 +27,28 @@ import './style.css';
 
 const API = import.meta.env.VITE_API_URL || '/api';
 
+async function fetchClusterJson(path){
+  const response=await fetch(`${API}${path}`);
+  if(!response.ok){
+    throw new Error(`${path} request failed`);
+  }
+  return response.json();
+}
+
 function App(){
+  const [activeView,setActiveView]=useState('dashboard');
   const [overview,setOverview]=useState({});
   const [pods,setPods]=useState([]);
   const [services,setServices]=useState([]);
   const [deployments,setDeployments]=useState([]);
+  const [events,setEvents]=useState([]);
   const [question,setQuestion]=useState('Why is this pod unhealthy?');
   const [namespace,setNamespace]=useState('default');
   const [podName,setPodName]=useState('');
   const [search,setSearch]=useState('');
   const [loading,setLoading]=useState(false);
+  const [loadingCluster,setLoadingCluster]=useState(false);
+  const [refreshError,setRefreshError]=useState('');
   const [lastRefresh,setLastRefresh]=useState(null);
   const selectedRef=useRef({namespace:'default',podName:''});
   const [messages,setMessages]=useState([
@@ -52,22 +64,42 @@ function App(){
   ]);
 
   async function load(){
-    const [o,p,s,d]=await Promise.all([
-      fetch(`${API}/cluster/overview`).then(r=>r.ok ? r.json() : {}).catch(()=>({})),
-      fetch(`${API}/cluster/pods`).then(r=>r.ok ? r.json() : []).catch(()=>[]),
-      fetch(`${API}/cluster/services`).then(r=>r.ok ? r.json() : []).catch(()=>[]),
-      fetch(`${API}/cluster/deployments`).then(r=>r.ok ? r.json() : []).catch(()=>[]),
-    ]);
-    setOverview(o);
-    setPods(p);
-    setServices(s);
-    setDeployments(d);
-    setLastRefresh(new Date());
-    if(!selectedRef.current.podName && p.length){
-      const preferredPod=p.find(item=>item.namespace===selectedRef.current.namespace) || p[0];
-      selectedRef.current={namespace:preferredPod.namespace,podName:preferredPod.name};
-      setNamespace(preferredPod.namespace);
-      setPodName(preferredPod.name);
+    setLoadingCluster(true);
+    setRefreshError('');
+    const requests=[
+      ['overview', fetchClusterJson('/cluster/overview')],
+      ['pods', fetchClusterJson('/cluster/pods')],
+      ['services', fetchClusterJson('/cluster/services')],
+      ['deployments', fetchClusterJson('/cluster/deployments')],
+      ['events', fetchClusterJson('/cluster/events')],
+    ];
+
+    try {
+      const results=await Promise.allSettled(requests.map(([,request])=>request));
+      const failures=[];
+      const [overviewResult,podsResult,servicesResult,deploymentsResult,eventsResult]=results;
+
+      if(overviewResult.status==='fulfilled') setOverview(overviewResult.value); else failures.push('overview');
+      if(podsResult.status==='fulfilled') setPods(podsResult.value); else failures.push('pods');
+      if(servicesResult.status==='fulfilled') setServices(servicesResult.value); else failures.push('services');
+      if(deploymentsResult.status==='fulfilled') setDeployments(deploymentsResult.value); else failures.push('deployments');
+      if(eventsResult.status==='fulfilled') setEvents(eventsResult.value); else failures.push('events');
+
+      setLastRefresh(new Date());
+      if(podsResult.status==='fulfilled' && !selectedRef.current.podName && podsResult.value.length){
+        const preferredPod=podsResult.value.find(item=>item.namespace===selectedRef.current.namespace) || podsResult.value[0];
+        selectedRef.current={namespace:preferredPod.namespace,podName:preferredPod.name};
+        setNamespace(preferredPod.namespace);
+        setPodName(preferredPod.name);
+      }
+
+      if(failures.length){
+        setRefreshError(`Partial refresh: ${failures.join(', ')} unavailable`);
+      }
+    } catch (err) {
+      setRefreshError(err.message || 'Unable to refresh cluster data');
+    } finally {
+      setLoadingCluster(false);
     }
   }
 
@@ -95,6 +127,11 @@ function App(){
   const filteredDeployments=useMemo(
     ()=>filterResources(deployments,search,['namespace','name']),
     [deployments,search]
+  );
+
+  const filteredEvents=useMemo(
+    ()=>filterResources(events,search,['namespace','reason','message','object_kind','object_name','type']),
+    [events,search]
   );
 
   const selectedPod=useMemo(
@@ -167,10 +204,10 @@ function App(){
       </div>
 
       <nav className="nav">
-        <a className="active"><LayoutDashboard size={18}/> Applications</a>
-        <a><MessageSquareText size={18}/> AI Troubleshoot</a>
-        <a><Network size={18}/> Resource Tree</a>
-        <a><History size={18}/> Events</a>
+        <NavButton active={activeView==='dashboard'} icon={<LayoutDashboard size={18}/>} label="Applications" onClick={()=>setActiveView('dashboard')} />
+        <NavButton active={activeView==='ai'} icon={<MessageSquareText size={18}/>} label="AI Troubleshoot" onClick={()=>setActiveView('ai')} />
+        <NavButton active={activeView==='resources'} icon={<Network size={18}/>} label="Resource Tree" onClick={()=>setActiveView('resources')} />
+        <NavButton active={activeView==='events'} icon={<History size={18}/>} label="Events" onClick={()=>setActiveView('events')} />
       </nav>
 
       <div className="filter-block">
@@ -194,70 +231,57 @@ function App(){
       <header className="topbar">
         <div>
           <div className="crumbs">Applications <ChevronRight size={15}/> k8s-ai-troubleshooter</div>
-          <h2>Kubernetes AI Troubleshooter</h2>
+          <h2>{viewTitle(activeView)}</h2>
+          {refreshError && <p className="refresh-error">{refreshError}</p>}
         </div>
-        <button className="icon-button" onClick={load} title="Refresh cluster data">
-          <RefreshCw size={18}/>
-          Refresh
+        <button className="icon-button" onClick={load} disabled={loadingCluster} title="Refresh cluster data">
+          <RefreshCw className={loadingCluster ? 'spin' : ''} size={18}/>
+          {loadingCluster ? 'Refreshing' : 'Refresh'}
         </button>
       </header>
 
-      <section className="content-grid">
-        <section className="chat-panel">
-          <div className="panel-heading">
-            <div>
-              <span className="eyebrow">AI diagnosis</span>
-              <h3>Cluster support chat</h3>
-            </div>
-            <span className="selected-pill">{namespace || '-'} / {podName || 'select pod'}</span>
-          </div>
+      <section className={`content-grid ${activeView!=='dashboard' ? 'single' : ''}`}>
+        {(activeView==='dashboard' || activeView==='ai') && <ChatPanel
+          messages={messages}
+          loading={loading}
+          namespace={namespace}
+          podName={podName}
+          question={question}
+          setQuestion={setQuestion}
+          updateNamespace={updateNamespace}
+          updatePodName={updatePodName}
+          askAI={askAI}
+        />}
 
-          <div className="messages">
-            {messages.map((msg,index)=>
-              <ChatMessage key={`${msg.role}-${index}`} message={msg} />
-            )}
-            {loading && <div className="message assistant">
-              <div className="avatar"><Loader2 className="spin" size={18}/></div>
-              <div className="bubble muted">Analyzing pod logs, events, PVCs, and node status...</div>
-            </div>}
-          </div>
+        {(activeView==='dashboard' || activeView==='resources') && <ResourcePanel
+          pods={filteredPods}
+          services={filteredServices}
+          deployments={filteredDeployments}
+          selectedPod={selectedPod}
+          selectedNamespace={namespace}
+          lastRefresh={lastRefresh}
+          onSelectPod={selectPod}
+          onSelectNamespace={selectNamespace}
+        />}
 
-          <div className="composer">
-            <div className="target-row">
-              <input value={namespace} onChange={e=>updateNamespace(e.target.value)} placeholder="namespace" />
-              <input value={podName} onChange={e=>updatePodName(e.target.value)} placeholder="pod name" />
-            </div>
-            <div className="prompt-row">
-              <textarea value={question} onChange={e=>setQuestion(e.target.value)} placeholder="Ask about pod logs, events, PVC, image pull, CrashLoopBackOff..." />
-              <button onClick={askAI} disabled={loading} title="Analyze issue">
-                {loading ? <Loader2 className="spin" size={19}/> : <Send size={19}/>}
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <section className="ops-panel">
-          <div className="panel-heading">
-            <div>
-              <span className="eyebrow">Live resources</span>
-              <h3>Resource tree</h3>
-            </div>
-            <span className="time">{lastRefresh ? lastRefresh.toLocaleTimeString() : 'loading'}</span>
-          </div>
-
-          <ResourceGraph
-            pods={filteredPods}
-            services={filteredServices}
-            deployments={filteredDeployments}
-            selectedPod={selectedPod}
-            selectedNamespace={namespace}
-            onSelectPod={selectPod}
-            onSelectNamespace={selectNamespace}
-          />
-        </section>
+        {activeView==='events' && <EventsPanel events={filteredEvents} lastRefresh={lastRefresh} />}
       </section>
     </main>
   </div>;
+}
+
+function viewTitle(activeView){
+  if(activeView==='ai') return 'AI Troubleshoot';
+  if(activeView==='resources') return 'Resource Tree';
+  if(activeView==='events') return 'Events';
+  return 'Kubernetes AI Troubleshooter';
+}
+
+function NavButton({active,icon,label,onClick}){
+  return <button className={`nav-item ${active ? 'active' : ''}`} onClick={onClick} type="button">
+    {icon}
+    <span>{label}</span>
+  </button>;
 }
 
 function filterResources(items,search,fields){
@@ -274,6 +298,94 @@ function HealthTile({label,value,icon,tone}){
     <div>
       <span>{label}</span>
       <strong>{value}</strong>
+    </div>
+  </div>;
+}
+
+function ChatPanel({messages,loading,namespace,podName,question,setQuestion,updateNamespace,updatePodName,askAI}){
+  return <section className="chat-panel">
+    <div className="panel-heading">
+      <div>
+        <span className="eyebrow">AI diagnosis</span>
+        <h3>Cluster support chat</h3>
+      </div>
+      <span className="selected-pill">{namespace || '-'} / {podName || 'select pod'}</span>
+    </div>
+
+    <div className="messages">
+      {messages.map((msg,index)=>
+        <ChatMessage key={`${msg.role}-${index}`} message={msg} />
+      )}
+      {loading && <div className="message assistant">
+        <div className="avatar"><Loader2 className="spin" size={18}/></div>
+        <div className="bubble muted">Analyzing pod logs, events, PVCs, and node status...</div>
+      </div>}
+    </div>
+
+    <div className="composer">
+      <div className="target-row">
+        <input value={namespace} onChange={e=>updateNamespace(e.target.value)} placeholder="namespace" />
+        <input value={podName} onChange={e=>updatePodName(e.target.value)} placeholder="pod name" />
+      </div>
+      <div className="prompt-row">
+        <textarea value={question} onChange={e=>setQuestion(e.target.value)} placeholder="Ask about pod logs, events, PVC, image pull, CrashLoopBackOff..." />
+        <button onClick={askAI} disabled={loading} title="Analyze issue">
+          {loading ? <Loader2 className="spin" size={19}/> : <Send size={19}/>}
+        </button>
+      </div>
+    </div>
+  </section>;
+}
+
+function ResourcePanel({pods,services,deployments,selectedPod,selectedNamespace,lastRefresh,onSelectPod,onSelectNamespace}){
+  return <section className="ops-panel">
+    <div className="panel-heading">
+      <div>
+        <span className="eyebrow">Live resources</span>
+        <h3>Resource tree</h3>
+      </div>
+      <span className="time">{lastRefresh ? lastRefresh.toLocaleTimeString() : 'loading'}</span>
+    </div>
+
+    <ResourceGraph
+      pods={pods}
+      services={services}
+      deployments={deployments}
+      selectedPod={selectedPod}
+      selectedNamespace={selectedNamespace}
+      onSelectPod={onSelectPod}
+      onSelectNamespace={onSelectNamespace}
+    />
+  </section>;
+}
+
+function EventsPanel({events,lastRefresh}){
+  return <section className="events-panel">
+    <div className="panel-heading">
+      <div>
+        <span className="eyebrow">Cluster timeline</span>
+        <h3>Recent events</h3>
+      </div>
+      <span className="time">{lastRefresh ? lastRefresh.toLocaleTimeString() : 'loading'}</span>
+    </div>
+    <div className="event-list">
+      {events.map(event=><EventItem key={`${event.namespace}-${event.name}`} event={event} />)}
+      {!events.length && <div className="empty">No events found</div>}
+    </div>
+  </section>;
+}
+
+function EventItem({event}){
+  const isWarning=(event.type || '').toLowerCase()==='warning';
+  return <div className={`event-item ${isWarning ? 'warning' : 'normal'}`}>
+    <div className="event-icon">{isWarning ? <AlertTriangle size={17}/> : <CheckCircle2 size={17}/>}</div>
+    <div>
+      <div className="event-title">
+        <strong>{event.reason}</strong>
+        <span>{event.namespace}</span>
+      </div>
+      <p>{event.message}</p>
+      <small>{event.object_kind} / {event.object_name} / count {event.count} / {event.last_timestamp}</small>
     </div>
   </div>;
 }

@@ -33,6 +33,11 @@ class KubernetesService:
         field_selector = f"involvedObject.name={pod_name}"
         return self.core.list_namespaced_event(namespace, field_selector=field_selector).items
 
+    def list_events(self, namespace=None):
+        if namespace:
+            return self.core.list_namespaced_event(namespace).items
+        return self.core.list_event_for_all_namespaces().items
+
     def get_pod_logs(self, namespace, pod_name, container=None, previous=False, tail_lines=200):
         try:
             return self.core.read_namespaced_pod_log(
