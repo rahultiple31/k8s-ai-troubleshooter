@@ -96,7 +96,7 @@ that step:
 
 | Secret Name | Use |
 |---|---|
-| KUBECONFIG_B64 | Base64-encoded kubeconfig for the target cluster |
+| KUBECONFIG_B64 | Base64-encoded kubeconfig or raw kubeconfig YAML for the target cluster |
 | GHCR_PULL_USERNAME | GitHub username used by Kubernetes to pull private GHCR images |
 | GHCR_PULL_TOKEN | GitHub token with package read access |
 | GHCR_PULL_EMAIL | Email value for the Docker registry secret |
@@ -105,7 +105,7 @@ that step:
 Create `KUBECONFIG_B64` from your kubeconfig:
 
 ```bash
-cat ~/.kube/config | base64 -w 0
+base64 -w 0 ~/.kube/config
 ```
 
 On PowerShell:
@@ -113,6 +113,16 @@ On PowerShell:
 ```powershell
 [Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\.kube\config"))
 ```
+
+On PowerShell, you can copy it directly to the clipboard:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\.kube\config")) | Set-Clipboard
+```
+
+Paste only the base64 text into the GitHub secret. Do not include quotes,
+backticks, or command output labels. The workflow also accepts raw kubeconfig
+YAML in `KUBECONFIG_B64`, but base64 is safer for copy/paste.
 
 The workflow creates or updates this cluster secret automatically:
 
@@ -194,7 +204,7 @@ ArgoCD-managed deployments:
 
 | Secret Name | Use |
 |---|---|
-| KUBECONFIG_B64 | Base64-encoded kubeconfig for the target cluster |
+| KUBECONFIG_B64 | Base64-encoded kubeconfig or raw kubeconfig YAML for the target cluster |
 | GHCR_PULL_USERNAME | GitHub username used by Kubernetes image pulls |
 | GHCR_PULL_TOKEN | GitHub token with package read access |
 | GHCR_PULL_EMAIL | Email value for the Docker registry secret |

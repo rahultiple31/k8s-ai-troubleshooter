@@ -106,7 +106,24 @@ jobs:
         if: ${{ steps.cluster_config.outputs.configured == 'true' }}
         run: |
           mkdir -p "${HOME}/.kube"
-          echo "${KUBECONFIG_B64}" | base64 -d > "${HOME}/.kube/config"
+          raw_kubeconfig="$(printf '%s' "${KUBECONFIG_B64}" | sed 's/\r$//')"
+          if printf '%s' "${raw_kubeconfig}" | grep -q 'apiVersion:'; then
+            printf '%s\n' "${raw_kubeconfig}" > "${HOME}/.kube/config"
+          else
+            clean_kubeconfig_b64="$(printf '%s' "${KUBECONFIG_B64}" | tr -d '[:space:]' | sed "s/^[\"']//; s/[\"']$//")"
+            if ! printf '%s' "${clean_kubeconfig_b64}" | base64 --decode > "${HOME}/.kube/config"; then
+              echo "::error::KUBECONFIG_B64 must contain either raw kubeconfig YAML or valid base64-encoded kubeconfig content."
+              exit 1
+            fi
+          fi
+          if ! grep -q 'apiVersion:' "${HOME}/.kube/config"; then
+            echo "::error::KUBECONFIG_B64 decoded successfully, but the result does not look like a kubeconfig file."
+            exit 1
+          fi
+          if ! grep -q 'clusters:' "${HOME}/.kube/config"; then
+            echo "::error::KUBECONFIG_B64 does not contain a kubeconfig clusters section."
+            exit 1
+          fi
           chmod 600 "${HOME}/.kube/config"
 
       - name: Ensure application namespace exists
