@@ -45,16 +45,11 @@ class PrometheusService:
         errors = {}
 
         queries = {
-            "build_info": self.query(f"coredns_build_info{{{selector}}}"),
             "requests_by_instance": self.query(f"sum by(instance)(rate(coredns_dns_requests_total{{{selector}}}[5m]))"),
             "requests_by_type": self.query(f"sum by(type)(rate(coredns_dns_requests_total{{{selector}}}[5m]))"),
             "responses_by_code": self.query(f"sum by(rcode)(rate(coredns_dns_responses_total{{{selector}}}[5m]))"),
             "cache_hits": self.query(f"sum(rate(coredns_cache_hits_total{{{selector}}}[5m]))"),
             "cache_misses": self.query(f"sum(rate(coredns_cache_misses_total{{{selector}}}[5m]))"),
-            "health_check_failures": self.query(f"sum(increase(coredns_health_request_failures_total{{{selector}}}[1h]))"),
-            "upstream_rejected": self.query(
-                f"sum(increase(coredns_forward_responses_total{{{selector},rcode=~\"REFUSED|SERVFAIL\"}}[1h]))"
-            ),
             "panics": self.query(f"sum(increase(coredns_panics_total{{{selector}}}[1h]))"),
             "failed_reloads": self.query(f"sum(increase(coredns_reload_failed_total{{{selector}}}[1h]))"),
             "requests_total_range": self.query_range(f"sum(rate(coredns_dns_requests_total{{{selector}}}[5m]))"),

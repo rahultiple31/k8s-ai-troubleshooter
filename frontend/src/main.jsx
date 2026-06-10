@@ -475,23 +475,17 @@ function EventsPanel({events,lastRefresh}){
 }
 
 function MonitoringPanel({overview,pods,services,events,lastRefresh}){
-  const [metrics,setMetrics]=useState({cluster:null,coredns:null});
+  const [metrics,setMetrics]=useState({cluster:null});
   const [loadingMetrics,setLoadingMetrics]=useState(false);
-  const [metricError,setMetricError]=useState('');
+  const [openSection,setOpenSection]=useState('cluster');
 
   async function loadMetrics(){
     setLoadingMetrics(true);
-    setMetricError('');
-    const [clusterResult,corednsResult]=await Promise.allSettled([
-      fetchClusterJson('/cluster/prometheus/cluster-dashboard'),
-      fetchClusterJson('/cluster/prometheus/coredns'),
-    ]);
-    setMetrics(current=>({
-      cluster:clusterResult.status==='fulfilled' ? clusterResult.value : current.cluster,
-      coredns:corednsResult.status==='fulfilled' ? corednsResult.value : current.coredns,
-    }));
-    if(clusterResult.status==='rejected' && corednsResult.status==='rejected'){
-      setMetricError('Prometheus metrics unavailable from backend.');
+    try {
+      const cluster=await fetchClusterJson('/cluster/prometheus/cluster-dashboard');
+      setMetrics({cluster});
+    } catch (err) {
+      setMetrics(current=>current);
     }
     setLoadingMetrics(false);
   }
@@ -521,16 +515,32 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
     prometheusRows(cluster.https_errors_code,['namespace','service','code']),
     prometheusRows(cluster.https_errors_status,['namespace','service','status']),
   ).slice(0,8);
-  const corednsPods=pods.filter(pod=>/coredns|kube-dns/i.test(pod.name));
+  const readyNodes=Math.max((overview.nodes || 0) - (overview.not_ready_nodes || []).length,0);
+  const isClusterHealthy=!unhealthyPods.length && !warningEvents.length && !(overview.not_ready_nodes || []).length;
+  const podMetricRows=mergeMetricRows(
+    podCpuRows.map(row=>({...row,cpu:`${formatMetricValue(row.value)} cores`})),
+    podMemoryRows.map(row=>({...row,ram:`${formatMetricValue(row.value / 1024 / 1024)} MB`})),
+    podStorageRows.map(row=>({...row,storage:`${formatMetricValue(row.value / 1024 / 1024)} MB`})),
+  );
+  const podHealthRows=pods.slice(0,8).map(pod=>({
+    label:`${pod.namespace}/${pod.name}`,
+    value:`${pod.phase} / ${pod.restarts} restarts`,
+    healthy:pod.phase==='Running' || pod.phase==='Succeeded',
+  }));
+  const serviceRows=services.slice(0,8).map(service=>({
+    label:`${service.namespace}/${service.name}`,
+    value:`${service.type}${service.ports?.length ? ` : ${service.ports.map(port=>port.port).join(', ')}` : ''}`,
+    healthy:true,
+  }));
 
   return <section className="monitoring-panel">
-    <div className="grafana-heading">
+    <div className="monitoring-heading">
       <div>
-        <span>Cluster / Kubernetes</span>
-        <h3>Monitoring dashboard</h3>
+        <span className="eyebrow">Monitoring</span>
+        <h3>Cluster health dashboard</h3>
       </div>
-      <div className="grafana-actions">
-        <span>Last 1 hour</span>
+      <div className="monitoring-actions">
+        <span>{lastRefresh ? lastRefresh.toLocaleTimeString() : 'loading'}</span>
         <button className="mini-action" type="button" onClick={loadMetrics} disabled={loadingMetrics}>
           <RefreshCw className={loadingMetrics ? 'spin' : ''} size={15}/>
           {loadingMetrics ? 'Loading' : 'Refresh'}
@@ -538,236 +548,116 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
       </div>
     </div>
 
-    <div className="grafana-body">
-      {metricError && <div className="metric-error">{metricError}</div>}
-      <div className="grafana-filter-row">
-        <span>Scope</span>
-        <strong>all namespaces / cluster resources / last 1 hour</strong>
-      </div>
-
-      <DashboardSection title="Cluster health: CPU use, RAM use, storage use">
-        <div className="stat-row cluster-health-row">
-          <GaugePanel title="CPU Use" value={clusterCpu} suffix="%" />
-          <GaugePanel title="RAM Use" value={clusterMemory} suffix="%" />
-          <GaugePanel title="Storage Use" value={clusterStorage} suffix="%" />
-          <GrafanaStat title="Nodes" value={String(overview.nodes ?? '-')} tone={(overview.not_ready_nodes || []).length ? 'bad' : 'good'} />
-          <GrafanaStat title="Unhealthy Pods" value={String(unhealthyPods.length)} tone={unhealthyPods.length ? 'bad' : 'good'} />
-          <GrafanaStat title="Warnings" value={String(warningEvents.length)} tone={warningEvents.length ? 'bad' : 'good'} />
+    <div className="monitoring-tree">
+      <MonitoringGroup
+        title="Cluster health"
+        icon={<ShieldCheck size={19}/>}
+        open={openSection==='cluster'}
+        onToggle={()=>setOpenSection(openSection==='cluster' ? '' : 'cluster')}
+        badges={[
+          `${overview.nodes ?? '-'} node`,
+          `${pods.length} pod`,
+          isClusterHealthy ? 'Healthy' : 'Issue',
+        ]}
+        healthy={isClusterHealthy}
+      >
+        <div className="monitor-columns three">
+          <MetricCard title="CPU use" value={`${formatMetricValue(clusterCpu)}%`} healthy={clusterCpu < 85} />
+          <MetricCard title="RAM use" value={`${formatMetricValue(clusterMemory)}%`} healthy={clusterMemory < 85} />
+          <MetricCard title="Storage use" value={`${formatMetricValue(clusterStorage)}%`} healthy={clusterStorage < 85} />
         </div>
-      </DashboardSection>
+      </MonitoringGroup>
 
-      <DashboardSection title="Node: CPU use, RAM use, storage use">
-        <div className="grafana-chart-grid">
-          <BarPanel title="Node CPU use" rows={nodeCpuRows} unit="%" />
-          <BarPanel title="Node RAM use" rows={nodeMemoryRows} unit="%" />
-          <BarPanel title="Node storage use" rows={nodeStorageRows} unit="%" />
-          <ResourceListPanel title="Node health" rows={[
-            {label:'Ready nodes', value:String(Math.max((overview.nodes || 0) - (overview.not_ready_nodes || []).length,0))},
-            {label:'Not ready nodes', value:String((overview.not_ready_nodes || []).length)},
-          ]} empty="No node health data" />
+      <MonitoringGroup
+        title="Node"
+        icon={<Server size={19}/>}
+        open={openSection==='node'}
+        onToggle={()=>setOpenSection(openSection==='node' ? '' : 'node')}
+        badges={[`${readyNodes} ready`, `${(overview.not_ready_nodes || []).length} not ready`]}
+        healthy={!(overview.not_ready_nodes || []).length}
+      >
+        <div className="monitor-columns three">
+          <MetricList title="CPU use" rows={nodeCpuRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value<85}))} empty="No node CPU data" />
+          <MetricList title="RAM use" rows={nodeMemoryRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value<85}))} empty="No node RAM data" />
+          <MetricList title="Storage use" rows={nodeStorageRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value<85}))} empty="No node storage data" />
         </div>
-      </DashboardSection>
+      </MonitoringGroup>
 
-      <DashboardSection title="Pod: CPU use, RAM use, storage use, Pod health">
-        <div className="grafana-chart-grid">
-          <BarPanel title="Pod CPU use" rows={podCpuRows} unit="cores" />
-          <BarPanel title="Pod RAM use" rows={podMemoryRows.map(row=>({...row,value:row.value / 1024 / 1024}))} unit="MB" />
-          <BarPanel title="Pod storage use" rows={podStorageRows.map(row=>({...row,value:row.value / 1024 / 1024}))} unit="MB" />
-          <BarPanel title="Pod restarts" rows={restartRows} unit="restarts" />
-          <ResourceListPanel title="Pod health" rows={pods.slice(0,10).map(pod=>({
-            label:`${pod.namespace}/${pod.name}`,
-            value:`${pod.phase} / ${pod.restarts} restarts`,
-          }))} empty="No pod health data" />
-          <ResourceListPanel title="Warning events" rows={warningEvents.slice(0,10).map(event=>({
+      <MonitoringGroup
+        title="Pod"
+        icon={<Boxes size={19}/>}
+        open={openSection==='pod'}
+        onToggle={()=>setOpenSection(openSection==='pod' ? '' : 'pod')}
+        badges={[`${pods.length} pod`, `${unhealthyPods.length} issue`, `${sumRows(restartRows)} restart`]}
+        healthy={!unhealthyPods.length && !sumRows(restartRows)}
+      >
+        <div className="monitor-columns three">
+          <MetricList title="Pod use" rows={podMetricRows.slice(0,8).map(row=>({
+            label:row.label,
+            value:[row.cpu,row.ram,row.storage].filter(Boolean).join(' / ') || 'no metrics',
+            healthy:true,
+          }))} empty="No pod metrics" />
+          <MetricList title="Pod health" rows={podHealthRows} empty="No pod health data" />
+          <MetricList title="Pod warnings" rows={warningEvents.slice(0,8).map(event=>({
             label:`${event.namespace}/${event.object_name || event.name}`,
             value:event.reason,
+            healthy:false,
           }))} empty="No warning events" />
         </div>
-      </DashboardSection>
+      </MonitoringGroup>
 
-      <DashboardSection title="Pod networking: service and HTTP/HTTPS errors">
-        <div className="grafana-chart-grid">
-          <ResourceListPanel title="Services" rows={services.slice(0,10).map(service=>({
-            label:`${service.namespace}/${service.name}`,
-            value:`${service.type} ${service.ports?.map(port=>port.port).join(', ') || ''}`,
-          }))} empty="No services" />
-          <BarPanel title="HTTP errors 4xx/5xx" rows={httpErrorRows} unit="err/s" />
-          <BarPanel title="HTTPS errors 4xx/5xx" rows={httpsErrorRows} unit="err/s" />
+      <MonitoringGroup
+        title="Pod networking"
+        icon={<Network size={19}/>}
+        open={openSection==='networking'}
+        onToggle={()=>setOpenSection(openSection==='networking' ? '' : 'networking')}
+        badges={[`${services.length} svc`, `${formatMetricValue(sumRows(httpErrorRows))} http`, `${formatMetricValue(sumRows(httpsErrorRows))} https`]}
+        healthy={!sumRows(httpErrorRows) && !sumRows(httpsErrorRows)}
+      >
+        <div className="monitor-columns three">
+          <MetricList title="Services" rows={serviceRows} empty="No services" />
+          <MetricList title="HTTP errors" rows={httpErrorRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)} err/s`,healthy:row.value===0}))} empty="No HTTP errors" />
+          <MetricList title="HTTPS errors" rows={httpsErrorRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)} err/s`,healthy:row.value===0}))} empty="No HTTPS errors" />
         </div>
-      </DashboardSection>
-
-      <CoreDnsDashboard coredns={metrics.coredns || {}} pods={corednsPods} />
-
-      <small className="monitoring-time">Last cluster refresh: {lastRefresh ? lastRefresh.toLocaleTimeString() : 'loading'}</small>
+      </MonitoringGroup>
     </div>
   </section>;
 }
 
-function CoreDnsDashboard({coredns,pods}){
-  const requestRows=prometheusRows(coredns.requests_by_instance,['instance','pod']).slice(0,6);
-  const requestTypeRows=prometheusRows(coredns.requests_by_type,['type']).slice(0,8);
-  const responseRows=prometheusRows(coredns.responses_by_code,['rcode']).slice(0,8);
-  const cacheHits=firstPromValue(coredns.cache_hits);
-  const cacheMisses=firstPromValue(coredns.cache_misses);
-  const cacheTotal=cacheHits + cacheMisses;
-  const cacheHitRate=cacheTotal ? (cacheHits / cacheTotal) * 100 : 0;
-  const panics=firstPromValue(coredns.panics);
-  const failedReloads=firstPromValue(coredns.failed_reloads);
-  const healthFailures=firstPromValue(coredns.health_check_failures);
-  const upstreamRejected=firstPromValue(coredns.upstream_rejected);
-  const cpuMs=firstPromValue(coredns.cpu) * 1000;
-  const memory=firstPromValue(coredns.memory);
-  const version=firstPromLabel(coredns.build_info,'version') || firstPromLabel(coredns.build_info,'goversion') || 'n/a';
-  const cacheSeries=[
-    ...rangeSeries(coredns.cache_hits_range,['instance','job']).map(item=>({...item,label:`hits ${item.label}`})),
-    ...rangeSeries(coredns.cache_misses_range,['instance','job']).map(item=>({...item,label:`misses ${item.label}`})),
-  ];
-
-  return <div className="coredns-dashboard">
-    <DashboardSection title="CoreDNS / Grafana-style DNS dashboard">
-      <div className="grafana-filter-row">
-        <span>Instance</span>
-        <strong>{requestRows.map(row=>row.label).join(' + ') || 'CoreDNS metrics'}</strong>
-      </div>
-      <div className="coredns-global-grid">
-        <PiePanel title="Requests by instance" rows={requestRows} />
-        <ResourceListPanel title="CoreDNS pods" rows={pods.slice(0,8).map(pod=>({
-          label:`${pod.namespace}/${pod.name}`,
-          value:`${pod.phase} / ${pod.restarts} restarts`,
-        }))} empty="No CoreDNS pods found" />
-      </div>
-    </DashboardSection>
-
-    <DashboardSection title="CoreDNS health">
-      <div className="coredns-health-row">
-        <GrafanaStat title="Version" value={version} tone="info" />
-        <GrafanaStat title="Health Check Fails" value={formatMetricValue(healthFailures)} tone={healthFailures ? 'bad' : 'good'} />
-        <GrafanaStat title="Rejected Queries" value={formatMetricValue(upstreamRejected)} tone={upstreamRejected ? 'bad' : 'good'} />
-        <GrafanaStat title="Panics" value={formatMetricValue(panics)} tone={panics ? 'bad' : 'good'} />
-        <GrafanaStat title="Failed Reloads" value={formatMetricValue(failedReloads)} tone={failedReloads ? 'bad' : 'good'} />
-        <GaugePanel title="CPU Time" value={cpuMs} suffix=" ms" />
-        <GrafanaStat title="Memory Usage" value={formatBytes(memory)} tone="info" />
-      </div>
-    </DashboardSection>
-
-    <DashboardSection title="CoreDNS local traffic">
-      <div className="grafana-chart-grid">
-        <LinePanel title="Requests total" series={rangeSeries(coredns.requests_total_range,['instance','job'])} unit="req/s" />
-        <BarPanel title="Requests by type" rows={requestTypeRows} unit="req/s" />
-        <LinePanel title="Responses by code" series={rangeSeries(coredns.responses_range,['rcode'])} unit="req/s" />
-        <GaugePanel title="Cache hitrate" value={cacheHitRate} suffix="%" />
-        <PiePanel title="Responses by code" rows={responseRows} />
-        <LinePanel title="Cache activity" series={cacheSeries} unit="req/s" />
-      </div>
-    </DashboardSection>
+function MonitoringGroup({title,icon,open,onToggle,badges,healthy,children}){
+  return <div className={`monitor-group ${healthy ? 'healthy' : 'has-issue'}`}>
+    <button className="monitor-row" type="button" onClick={onToggle}>
+      <span className="arrow">{open ? <ChevronDown size={17}/> : <ChevronRight size={17}/>}</span>
+      <span className="namespace-icon">{icon}</span>
+      <strong>{title}</strong>
+      <span className={`phase ${healthy ? 'ok' : 'bad'}`}>{healthy ? 'Healthy' : 'Issue'}</span>
+      {badges.map((badge,index)=><span className="namespace-count" key={`${badge}-${index}`}>{badge}</span>)}
+    </button>
+    {open && <div className="monitor-children">{children}</div>}
   </div>;
 }
 
-function DashboardSection({title,children}){
-  return <div className="dashboard-section">
-    <div className="dashboard-section-title">v {title}</div>
-    {children}
-  </div>;
-}
-
-function GrafanaStat({title,value,tone}){
-  return <div className={`grafana-panel stat-panel ${tone || ''}`}>
+function MetricCard({title,value,healthy=true}){
+  return <div className={`metric-card ${healthy ? 'healthy' : 'has-issue'}`}>
     <span>{title}</span>
     <strong>{value}</strong>
+    {healthy ? <CheckCircle2 size={15}/> : <AlertTriangle size={15}/>}
   </div>;
 }
 
-function PiePanel({title,rows}){
-  const total=rows.reduce((sum,row)=>sum + Math.max(row.value,0),0);
-  let current=0;
-  const gradient=rows.length ? rows.map((row,index)=>{
-    const start=current;
-    const size=total ? (row.value / total) * 100 : 0;
-    current += size;
-    return `${chartColors[index % chartColors.length]} ${start}% ${current}%`;
-  }).join(', ') : '#1f2933 0 100%';
-  return <div className="grafana-panel pie-panel">
-    <PanelTitle title={title} />
-    <div className="pie-layout">
-      <div className="pie-chart" style={{background:`conic-gradient(${gradient})`}} />
-      <div className="legend-list">
-        {rows.map((row,index)=>
-          <div className="legend-row" key={`${row.label}-${index}`}>
-            <i style={{background:chartColors[index % chartColors.length]}} />
-            <span>{row.label}</span>
-            <strong>{formatMetricValue(row.value)}</strong>
-          </div>
-        )}
-        {!rows.length && <div className="grafana-empty">No data</div>}
+function MetricList({title,rows,empty}){
+  return <div className="monitor-section">
+    <span>{title}</span>
+    {rows.map((row,index)=>
+      <div className={`metric-list-row ${row.healthy === false ? 'has-issue' : 'healthy'}`} key={`${row.label}-${index}`}>
+        <strong>{row.label}</strong>
+        <small>{row.value}</small>
+        {row.healthy === false ? <AlertTriangle size={15}/> : <CheckCircle2 size={15}/>}
       </div>
-    </div>
+    )}
+    {!rows.length && <div className="monitor-empty">{empty}</div>}
   </div>;
 }
-
-function LinePanel({title,series,unit}){
-  return <div className="grafana-panel line-panel">
-    <PanelTitle title={title} />
-    <svg viewBox="0 0 520 170" preserveAspectRatio="none">
-      {[0,1,2,3].map(line=><line key={line} x1="0" x2="520" y1={20 + line*38} y2={20 + line*38} />)}
-      {[0,1,2,3,4,5].map(line=><line key={`v-${line}`} y1="10" y2="158" x1={40 + line*86} x2={40 + line*86} />)}
-      {series.map((item,index)=>
-        <polyline key={`${item.label}-${index}`} points={linePoints(item.values,series)} style={{stroke:chartColors[index % chartColors.length]}} />
-      )}
-    </svg>
-    <div className="chart-legend">
-      {series.slice(0,5).map((item,index)=><span key={`${item.label}-${index}`}><i style={{background:chartColors[index % chartColors.length]}} />{item.label}</span>)}
-      {!series.length && <span>No {unit} data</span>}
-    </div>
-  </div>;
-}
-
-function BarPanel({title,rows,unit}){
-  const max=Math.max(...rows.map(row=>row.value),1);
-  return <div className="grafana-panel bar-panel">
-    <PanelTitle title={title} />
-    <div className="bar-list">
-      {rows.map((row,index)=>
-        <div className="bar-row" key={`${row.label}-${index}`}>
-          <span>{row.label}</span>
-          <div><i style={{width:`${Math.max((row.value / max) * 100,3)}%`, background:chartColors[index % chartColors.length]}} /></div>
-          <strong>{formatMetricValue(row.value)} {unit}</strong>
-        </div>
-      )}
-      {!rows.length && <div className="grafana-empty">No data</div>}
-    </div>
-  </div>;
-}
-
-function ResourceListPanel({title,rows,empty}){
-  return <div className="grafana-panel resource-list-panel">
-    <PanelTitle title={title} />
-    <div className="resource-list-table">
-      {rows.map((row,index)=>
-        <div className="resource-list-row" key={`${row.label}-${row.value}-${index}`}>
-          <span>{row.label}</span>
-          <strong>{row.value}</strong>
-        </div>
-      )}
-      {!rows.length && <div className="grafana-empty">{empty}</div>}
-    </div>
-  </div>;
-}
-
-function GaugePanel({title,value,suffix}){
-  const clamped=Math.max(0,Math.min(value || 0,100));
-  return <div className="grafana-panel gauge-panel">
-    <PanelTitle title={title} />
-    <div className="gauge" style={{background:`conic-gradient(#73bf69 0 ${clamped * 1.8}deg,#ff9830 ${clamped * 1.8}deg 230deg,#2b323b 230deg 360deg)`}}>
-      <div><strong>{formatMetricValue(value)}</strong><span>{suffix}</span></div>
-    </div>
-  </div>;
-}
-
-function PanelTitle({title}){
-  return <div className="grafana-panel-title">{title}</div>;
-}
-
-const chartColors=['#73bf69','#f2cc0c','#6ed0e0','#ff9830','#f2495c','#b877d9','#5794f2','#e0b400'];
 
 function prometheusRows(response,labels=['instance','pod','namespace','job']){
   return (response?.data?.result || []).map(item=>{
@@ -777,16 +667,6 @@ function prometheusRows(response,labels=['instance','pod','namespace','job']){
       value:promNumber(item.value?.[1]),
     };
   }).sort((a,b)=>b.value-a.value);
-}
-
-function rangeSeries(response,labels=['instance','job']){
-  return (response?.data?.result || []).slice(0,8).map(item=>{
-    const metric=item.metric || {};
-    return {
-      label:metricLabel(metric,labels),
-      values:(item.values || []).map(value=>promNumber(value[1])),
-    };
-  });
 }
 
 function promNumber(value){
@@ -800,23 +680,8 @@ function metricLabel(metric,labels){
   return metric.instance || metric.pod || metric.namespace || metric.job || 'cluster';
 }
 
-function linePoints(values,series){
-  const allValues=series.flatMap(item=>item.values);
-  const max=Math.max(...allValues,1);
-  const length=Math.max(values.length-1,1);
-  return values.map((value,index)=>{
-    const x=(index / length) * 520;
-    const y=155 - ((value / max) * 130);
-    return `${x},${y}`;
-  }).join(' ');
-}
-
 function firstPromValue(response){
   return promNumber(response?.data?.result?.[0]?.value?.[1]);
-}
-
-function firstPromLabel(response,label){
-  return response?.data?.result?.find(item=>item.metric?.[label])?.metric?.[label] || '';
 }
 
 function sumRows(rows){
@@ -843,18 +708,19 @@ function combineRows(...rowGroups){
     .sort((a,b)=>b.value-a.value);
 }
 
+function mergeMetricRows(...rowGroups){
+  const merged=new Map();
+  rowGroups.flat().forEach(row=>{
+    const current=merged.get(row.label) || {label:row.label};
+    merged.set(row.label,{...current,...row});
+  });
+  return Array.from(merged.values());
+}
+
 function formatMetricValue(value){
   if(!Number.isFinite(value)) return '0';
   if(value>=100) return String(Math.round(value));
   return value.toFixed(1);
-}
-
-function formatBytes(value){
-  if(!value) return '-';
-  if(value > 1024 * 1024 * 1024) return `${(value / 1024 / 1024 / 1024).toFixed(1)} GB`;
-  if(value > 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
-  if(value > 1024) return `${(value / 1024).toFixed(1)} KB`;
-  return `${Math.round(value)} B`;
 }
 
 function TerminalPanel({namespace,podName,onAskFix}){
