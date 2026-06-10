@@ -90,69 +90,26 @@ npm run dev
 ArgoCD should sync this application from the Helm chart in
 `helm/k8s-ai-troubleshooter` or the manifests in `k8s/`.
 
-The GitHub Actions workflow can create the namespace and Kubernetes secrets
-before ArgoCD syncs the app. Add these repository secrets in GitHub to enable
-that step:
+GitHub Actions does not connect to the Kubernetes cluster. It only builds and
+pushes images to GHCR. ArgoCD deploys by syncing the Helm chart from Git.
 
-| Secret Name | Use |
-|---|---|
-| KUBECONFIG | Raw kubeconfig YAML for the target cluster |
-| KUBECONFIG_B64 | Optional fallback: base64-encoded kubeconfig |
-| GHCR_PULL_USERNAME | GitHub username used by Kubernetes to pull private GHCR images |
-| GHCR_PULL_TOKEN | GitHub token with package read access |
-| GHCR_PULL_EMAIL | Email value for the Docker registry secret |
-| OPENAI_API_KEY | Optional API key stored as the `k8s-ai-secret` Kubernetes secret |
-
-Recommended: create `KUBECONFIG` by copying the raw contents of your kubeconfig
-file into the GitHub secret:
+If GHCR packages are private, create the pull secret once from your cluster
+admin machine before syncing:
 
 ```bash
-cat ~/.kube/config
-```
+kubectl create namespace k8s-ai --dry-run=client -o yaml | kubectl apply -f -
 
-On PowerShell:
-
-```powershell
-Get-Content "$env:USERPROFILE\.kube\config" -Raw | Set-Clipboard
-```
-
-Optional fallback: create `KUBECONFIG_B64` from your kubeconfig:
-
-```bash
-base64 -w 0 ~/.kube/config
-```
-
-On PowerShell:
-
-```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\.kube\config"))
-```
-
-On PowerShell, you can copy it directly to the clipboard:
-
-```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\.kube\config")) | Set-Clipboard
-```
-
-Paste only the base64 text into the GitHub secret. Do not include quotes,
-backticks, or command output labels.
-
-The workflow creates or updates this cluster secret automatically:
-
-```bash
 kubectl create secret docker-registry ghcr-secret \
   -n k8s-ai \
   --docker-server=ghcr.io \
-  --docker-username="$GHCR_PULL_USERNAME" \
-  --docker-password="$GHCR_PULL_TOKEN" \
-  --docker-email="$GHCR_PULL_EMAIL" \
+  --docker-username='<github-username>' \
+  --docker-password='<github-token-with-read-packages>' \
+  --docker-email='<email>' \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-If `KUBECONFIG`/`KUBECONFIG_B64` or any GHCR pull secret is missing or invalid,
-the workflow skips cluster secret setup and only builds/pushes images. Private
-GHCR images still require `ghcr-secret` to exist in the `k8s-ai` namespace
-before pods can pull them.
+If the GHCR packages are public, remove or override `imagePullSecrets` in the
+Helm values.
 
 Access UI:
 
@@ -211,21 +168,8 @@ helm/k8s-ai-troubleshooter/templates/
 
 ### GitHub Secrets
 
-GitHub Actions uses the built-in `GITHUB_TOKEN` to push images to GHCR. The
-following repository secrets are used to configure Kubernetes secrets for
-ArgoCD-managed deployments:
-
-| Secret Name | Use |
-|---|---|
-| KUBECONFIG | Raw kubeconfig YAML for the target cluster |
-| KUBECONFIG_B64 | Optional fallback: base64-encoded kubeconfig |
-| GHCR_PULL_USERNAME | GitHub username used by Kubernetes image pulls |
-| GHCR_PULL_TOKEN | GitHub token with package read access |
-| GHCR_PULL_EMAIL | Email value for the Docker registry secret |
-| OPENAI_API_KEY | Optional API key synced to the `k8s-ai-secret` Kubernetes secret |
-
-The cluster secret configuration job is skipped when the required Kubernetes
-and GHCR pull secrets are missing or invalid, so image builds can still pass.
+No Kubernetes cluster secret is required in GitHub Actions. The workflow uses
+the built-in `GITHUB_TOKEN` to push images to GHCR.
 
 ### GitHub Container Registry
 
@@ -237,8 +181,7 @@ ghcr.io/<github-username>/k8s-ai-frontend:<commit-sha>
 ```
 
 If the GHCR packages are private, the cluster must have a `ghcr-secret`
-image pull secret in the application namespace. The workflow creates that
-secret from GitHub repository secrets, and the Helm chart and standalone
+image pull secret in the application namespace. The Helm chart and standalone
 manifests reference it by default.
 
 ### Pipeline Flow
@@ -278,8 +221,8 @@ http://localhost:8080
 ### Upgrade Application
 
 Push code to `main` or run the workflow manually from GitHub Actions. The
-pipeline will build and publish new images, and ArgoCD will handle the cluster
-sync from Git.
+pipeline will build and publish new images, and ArgoCD will handle sync from
+Git.
 
 ### Rollback
 
