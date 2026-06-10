@@ -6,8 +6,8 @@ import {
   Bot,
   Boxes,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
-  CircleDot,
   Database,
   GitBranch,
   History,
@@ -30,6 +30,8 @@ const API = import.meta.env.VITE_API_URL || '/api';
 function App(){
   const [overview,setOverview]=useState({});
   const [pods,setPods]=useState([]);
+  const [services,setServices]=useState([]);
+  const [deployments,setDeployments]=useState([]);
   const [question,setQuestion]=useState('Why is this pod unhealthy?');
   const [namespace,setNamespace]=useState('default');
   const [podName,setPodName]=useState('');
@@ -50,15 +52,22 @@ function App(){
   ]);
 
   async function load(){
-    const o=await fetch(`${API}/cluster/overview`).then(r=>r.ok ? r.json() : {}).catch(()=>({}));
-    const p=await fetch(`${API}/cluster/pods`).then(r=>r.ok ? r.json() : []).catch(()=>[]);
+    const [o,p,s,d]=await Promise.all([
+      fetch(`${API}/cluster/overview`).then(r=>r.ok ? r.json() : {}).catch(()=>({})),
+      fetch(`${API}/cluster/pods`).then(r=>r.ok ? r.json() : []).catch(()=>[]),
+      fetch(`${API}/cluster/services`).then(r=>r.ok ? r.json() : []).catch(()=>[]),
+      fetch(`${API}/cluster/deployments`).then(r=>r.ok ? r.json() : []).catch(()=>[]),
+    ]);
     setOverview(o);
     setPods(p);
+    setServices(s);
+    setDeployments(d);
     setLastRefresh(new Date());
     if(!selectedRef.current.podName && p.length){
-      selectedRef.current={namespace:p[0].namespace,podName:p[0].name};
-      setNamespace(p[0].namespace);
-      setPodName(p[0].name);
+      const preferredPod=p.find(item=>item.namespace===selectedRef.current.namespace) || p[0];
+      selectedRef.current={namespace:preferredPod.namespace,podName:preferredPod.name};
+      setNamespace(preferredPod.namespace);
+      setPodName(preferredPod.name);
     }
   }
 
@@ -78,6 +87,16 @@ function App(){
     );
   },[pods,search]);
 
+  const filteredServices=useMemo(
+    ()=>filterResources(services,search,['namespace','name','type','cluster_ip']),
+    [services,search]
+  );
+
+  const filteredDeployments=useMemo(
+    ()=>filterResources(deployments,search,['namespace','name']),
+    [deployments,search]
+  );
+
   const selectedPod=useMemo(
     ()=>pods.find(p=>p.namespace===namespace && p.name===podName),
     [pods,namespace,podName]
@@ -92,6 +111,13 @@ function App(){
     setNamespace(p.namespace);
     setPodName(p.name);
     setQuestion(`Why is pod ${p.name} in ${p.phase} state?`);
+  }
+
+  function selectNamespace(nextNamespace){
+    selectedRef.current={namespace:nextNamespace,podName:''};
+    setNamespace(nextNamespace);
+    setPodName('');
+    setQuestion(`Which resources have issues in namespace ${nextNamespace}?`);
   }
 
   function updateNamespace(value){
@@ -151,7 +177,7 @@ function App(){
         <span>Resource filters</span>
         <label>
           <Search size={16}/>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search pods" />
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search resources" />
         </label>
       </div>
 
@@ -225,7 +251,15 @@ function App(){
             <span className="time">{lastRefresh ? lastRefresh.toLocaleTimeString() : 'loading'}</span>
           </div>
 
-          <ResourceGraph pods={filteredPods} selectedPod={selectedPod} onSelect={selectPod} />
+          <ResourceGraph
+            pods={filteredPods}
+            services={filteredServices}
+            deployments={filteredDeployments}
+            selectedPod={selectedPod}
+            selectedNamespace={namespace}
+            onSelectPod={selectPod}
+            onSelectNamespace={selectNamespace}
+          />
 
           <div className="pod-table-wrap">
             <table>
@@ -249,6 +283,14 @@ function App(){
       </section>
     </main>
   </div>;
+}
+
+function filterResources(items,search,fields){
+  const needle=search.trim().toLowerCase();
+  if(!needle) return items;
+  return items.filter(item=>
+    fields.some(field=>String(item[field] || '').toLowerCase().includes(needle))
+  );
 }
 
 function StatusRow({icon,label,value,tone}){
@@ -295,50 +337,124 @@ function ChatMessage({message}){
   </div>;
 }
 
-function ResourceGraph({pods,selectedPod,onSelect}){
-  const backendPods=pods.filter(p=>p.name.includes('backend'));
-  const frontendPods=pods.filter(p=>p.name.includes('frontend'));
-  const dataPods=pods.filter(p=>p.name.includes('postgres') || p.name.includes('redis'));
-  const otherPods=pods.filter(p=>!backendPods.includes(p) && !frontendPods.includes(p) && !dataPods.includes(p));
+function ResourceGraph({pods,services,deployments,selectedPod,selectedNamespace,onSelectPod,onSelectNamespace}){
+  const [expanded,setExpanded]=useState({});
 
-  return <div className="graph">
-    <div className="app-node">
-      <CircleDot size={24}/>
-      <div><strong>k8s-ai</strong><span>application</span></div>
-    </div>
-    <GraphColumn title="Services" items={[
-      {name:'k8s-ai-frontend', icon:<Network size={20}/>, phase:'Running'},
-      {name:'k8s-ai-backend', icon:<Network size={20}/>, phase:'Running'},
-      {name:'k8s-ai-postgres', icon:<Database size={20}/>, phase:'Running'},
-      {name:'k8s-ai-redis', icon:<Database size={20}/>, phase:'Running'},
-    ]} />
-    <GraphColumn title="Pods" items={[...frontendPods,...backendPods,...dataPods,...otherPods].slice(0,8)} selectedPod={selectedPod} onSelect={onSelect} />
+  const namespaces=useMemo(()=>{
+    const names=new Set([
+      ...pods.map(item=>item.namespace),
+      ...services.map(item=>item.namespace),
+      ...deployments.map(item=>item.namespace),
+    ].filter(Boolean));
+    return Array.from(names).sort((a,b)=>{
+      if(a===selectedNamespace) return -1;
+      if(b===selectedNamespace) return 1;
+      return a.localeCompare(b);
+    });
+  },[pods,services,deployments,selectedNamespace]);
+
+  useEffect(()=>{
+    if(selectedNamespace){
+      setExpanded(current=>({...current,[selectedNamespace]:true}));
+    }
+  },[selectedNamespace]);
+
+  function toggleNamespace(ns){
+    setExpanded(current=>({...current,[ns]:!current[ns]}));
+    if(ns!==selectedNamespace){
+      onSelectNamespace(ns);
+    }
+  }
+
+  if(!namespaces.length){
+    return <div className="graph compact"><div className="empty">No namespace resources found</div></div>;
+  }
+
+  return <div className="graph compact">
+    {namespaces.map(ns=>{
+      const nsPods=pods.filter(item=>item.namespace===ns);
+      const nsServices=services.filter(item=>item.namespace===ns);
+      const nsDeployments=deployments.filter(item=>item.namespace===ns);
+      const badPods=nsPods.filter(item=>!isPodHealthy(item));
+      const badDeployments=nsDeployments.filter(item=>!isDeploymentHealthy(item));
+      const hasIssue=badPods.length>0 || badDeployments.length>0;
+      const isOpen=expanded[ns];
+
+      return <div key={ns} className={`namespace-group ${hasIssue ? 'has-issue' : 'healthy'}`}>
+        <button className="namespace-row" type="button" onClick={()=>toggleNamespace(ns)}>
+          <span className="arrow">{isOpen ? <ChevronDown size={17}/> : <ChevronRight size={17}/>}</span>
+          <span className="namespace-icon"><Boxes size={19}/></span>
+          <span className="namespace-name">{ns}</span>
+          <span className="namespace-count">{nsDeployments.length} deploy</span>
+          <span className="namespace-count">{nsServices.length} svc</span>
+          <span className="namespace-count">{nsPods.length} pod</span>
+          <PhaseBadge phase={hasIssue ? 'Issue' : 'Healthy'} />
+        </button>
+
+        {isOpen && <div className="namespace-children">
+          <ResourceSection title="Deployments">
+            {nsDeployments.map(item=>
+              <ResourceNode key={`deploy-${item.namespace}-${item.name}`} icon={<Activity size={18}/>} name={item.name} meta={`${item.ready_replicas}/${item.replicas} ready`} healthy={isDeploymentHealthy(item)} />
+            )}
+          </ResourceSection>
+          <ResourceSection title="Services">
+            {nsServices.map(item=>
+              <ResourceNode key={`svc-${item.namespace}-${item.name}`} icon={<Network size={18}/>} name={item.name} meta={`${item.type}${item.ports?.length ? ` : ${item.ports.map(port=>port.port).join(', ')}` : ''}`} healthy />
+            )}
+          </ResourceSection>
+          <ResourceSection title="Pods">
+            {nsPods.map(item=>
+              <ResourceNode
+                key={`pod-${item.namespace}-${item.name}`}
+                icon={item.name.includes('postgres') || item.name.includes('redis') ? <Database size={18}/> : <Terminal size={18}/>}
+                name={item.name}
+                meta={`${item.phase || 'Unknown'} / ${item.restarts} restarts`}
+                healthy={isPodHealthy(item)}
+                active={selectedPod?.namespace===item.namespace && selectedPod?.name===item.name}
+                onClick={()=>onSelectPod(item)}
+              />
+            )}
+          </ResourceSection>
+        </div>}
+      </div>;
+    })}
   </div>;
 }
 
-function GraphColumn({title,items,selectedPod,onSelect}){
-  return <div className="graph-column">
+function ResourceSection({title,children}){
+  const count=React.Children.count(children);
+  return <div className="resource-section">
     <span>{title}</span>
-    {items.map((item,index)=>
-      <button
-        key={`${item.name}-${index}`}
-        className={`resource-node ${selectedPod?.name===item.name ? 'active' : ''}`}
-        onClick={()=>onSelect && onSelect(item)}
-        type="button"
-      >
-        <div className="resource-icon">{item.icon || <Terminal size={20}/>}</div>
-        <div>
-          <strong>{item.name}</strong>
-          <PhaseBadge phase={item.phase}/>
-        </div>
-        <Activity size={16}/>
-      </button>
-    )}
+    {count ? children : <div className="resource-empty">No {title.toLowerCase()}</div>}
   </div>;
+}
+
+function ResourceNode({icon,name,meta,healthy,active,onClick}){
+  return <button
+    className={`resource-node ${healthy ? 'healthy' : 'has-issue'} ${active ? 'active' : ''}`}
+    onClick={onClick}
+    type="button"
+    disabled={!onClick}
+  >
+    <div className="resource-icon">{icon}</div>
+    <div>
+      <strong>{name}</strong>
+      <small>{meta}</small>
+    </div>
+    <span className="resource-state">{healthy ? <CheckCircle2 size={15}/> : <AlertTriangle size={15}/>}</span>
+  </button>;
+}
+
+function isPodHealthy(pod){
+  return pod.phase==='Running' || pod.phase==='Succeeded';
+}
+
+function isDeploymentHealthy(deployment){
+  return (deployment.replicas || 0)===(deployment.ready_replicas || 0);
 }
 
 function PhaseBadge({phase}){
-  const ok=phase==='Running' || phase==='Succeeded';
+  const ok=phase==='Running' || phase==='Succeeded' || phase==='Healthy';
   return <span className={`phase ${ok ? 'ok' : 'bad'}`}>{phase || 'Unknown'}</span>;
 }
 

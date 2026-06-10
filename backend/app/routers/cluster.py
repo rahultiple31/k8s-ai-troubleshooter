@@ -50,6 +50,44 @@ def pods(namespace: str | None = None):
         "restarts": sum(cs.restart_count for cs in (p.status.container_statuses or [])),
     } for p in pod_list]
 
+@router.get("/services")
+def services(namespace: str | None = None):
+    k8s = get_kubernetes_service()
+    try:
+        service_list = k8s.list_services(namespace)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return [{
+        "namespace": s.metadata.namespace,
+        "name": s.metadata.name,
+        "type": s.spec.type,
+        "cluster_ip": s.spec.cluster_ip,
+        "ports": [
+            {
+                "name": port.name,
+                "port": port.port,
+                "target_port": str(port.target_port) if port.target_port is not None else "",
+                "protocol": port.protocol,
+            }
+            for port in (s.spec.ports or [])
+        ],
+    } for s in service_list]
+
+@router.get("/deployments")
+def deployments(namespace: str | None = None):
+    k8s = get_kubernetes_service()
+    try:
+        deployment_list = k8s.list_deployments(namespace)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return [{
+        "namespace": d.metadata.namespace,
+        "name": d.metadata.name,
+        "replicas": d.spec.replicas or 0,
+        "ready_replicas": d.status.ready_replicas or 0,
+        "available_replicas": d.status.available_replicas or 0,
+    } for d in deployment_list]
+
 @router.get("/prometheus/node-memory")
 async def node_memory():
     return await PrometheusService().node_memory()

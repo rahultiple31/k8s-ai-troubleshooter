@@ -453,82 +453,140 @@ button{
 
 .graph{
   min-height:330px;
-  padding:24px;
-  display:grid;
-  grid-template-columns:180px minmax(190px,.8fr) minmax(230px,1fr);
-  gap:22px;
-  align-items:center;
+  padding:14px;
   background:#dfe9ee;
   overflow:auto;
 }
 
-.app-node{
-  display:flex;
-  align-items:center;
-  gap:12px;
-  width:172px;
-  min-height:74px;
-  padding:14px;
-  border-radius:8px;
-  background:#fff;
-  border:1px solid var(--line);
-  position:relative;
-}
-
-.app-node:after,.graph-column:before{
-  content:"";
-  position:absolute;
-  height:1px;
-  background:#9eb2bf;
-  top:50%;
-}
-
-.app-node:after{
-  right:-22px;
-  width:22px;
-}
-
-.app-node svg{
-  color:#8fa5b2;
-}
-
-.app-node span,.graph-column>span{
-  color:var(--muted);
-  font-size:12px;
-  font-weight:800;
-  text-transform:uppercase;
-}
-
-.graph-column{
-  position:relative;
+.graph.compact{
   display:grid;
-  align-content:center;
+  align-content:start;
   gap:10px;
 }
 
-.graph-column:before{
-  left:-22px;
-  width:22px;
+.namespace-group{
+  border:1px solid var(--line);
+  border-radius:8px;
+  overflow:hidden;
+  background:#fff;
+}
+
+.namespace-group.healthy{
+  border-left:4px solid var(--teal);
+}
+
+.namespace-group.has-issue{
+  border-left:4px solid var(--red);
+}
+
+.namespace-row{
+  width:100%;
+  min-height:54px;
+  display:grid;
+  grid-template-columns:24px 34px minmax(120px,1fr) repeat(3,max-content) max-content;
+  gap:10px;
+  align-items:center;
+  border:0;
+  background:#fff;
+  color:var(--ink);
+  text-align:left;
+  padding:9px 12px;
+}
+
+.namespace-group.has-issue .namespace-row{
+  background:#fff7f7;
+}
+
+.arrow{
+  color:#718694;
+  display:grid;
+  place-items:center;
+}
+
+.namespace-icon{
+  width:32px;
+  height:32px;
+  display:grid;
+  place-items:center;
+  color:#7c94a2;
+  background:#eef4f7;
+  border-radius:8px;
+}
+
+.namespace-group.has-issue .namespace-icon{
+  color:var(--red);
+  background:#ffeded;
+}
+
+.namespace-name{
+  font-weight:850;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.namespace-count{
+  min-width:62px;
+  color:#5e7381;
+  background:#edf3f6;
+  border-radius:999px;
+  padding:4px 8px;
+  font-size:12px;
+  font-weight:850;
+  text-align:center;
+}
+
+.namespace-children{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+  padding:10px;
+  border-top:1px solid var(--line);
+  background:#f8fbfc;
+}
+
+.resource-section{
+  display:grid;
+  align-content:start;
+  gap:8px;
+  min-width:0;
+}
+
+.resource-section>span{
+  color:var(--muted);
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase;
 }
 
 .resource-node{
   width:100%;
-  min-height:58px;
+  min-height:52px;
   border:1px solid var(--line);
   border-radius:8px;
   background:#fff;
   display:grid;
-  grid-template-columns:36px minmax(0,1fr) 18px;
-  gap:10px;
+  grid-template-columns:32px minmax(0,1fr) 18px;
+  gap:9px;
   align-items:center;
   text-align:left;
-  padding:9px 10px;
+  padding:8px 9px;
   color:var(--ink);
 }
 
+.resource-node:disabled{
+  cursor:default;
+  opacity:1;
+}
+
 .resource-node.active{
-  border-color:#5ed8c0;
+  border-color:#39c9ae;
   background:#e9fbf7;
+}
+
+.resource-node.has-issue{
+  border-color:#ffc6c6;
+  background:#fff7f7;
 }
 
 .resource-node strong{
@@ -536,14 +594,43 @@ button{
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
+  font-size:13px;
+}
+
+.resource-node small{
+  display:block;
+  margin-top:3px;
+  color:var(--muted);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
 }
 
 .resource-icon{
-  width:34px;
-  height:34px;
+  width:30px;
+  height:30px;
   display:grid;
   place-items:center;
   color:#8aa1ae;
+}
+
+.resource-node.has-issue .resource-icon,.resource-node.has-issue .resource-state{
+  color:var(--red);
+}
+
+.resource-node.healthy .resource-state{
+  color:var(--teal);
+}
+
+.resource-empty{
+  min-height:52px;
+  display:grid;
+  place-items:center;
+  color:#8295a1;
+  border:1px dashed var(--line);
+  border-radius:8px;
+  background:#fff;
+  font-size:13px;
 }
 
 .phase{
@@ -566,6 +653,11 @@ button{
 }
 
 .phase.bad{
+  color:#ba3939;
+  background:#ffeded;
+}
+
+.namespace-group.has-issue .namespace-row .phase{
   color:#ba3939;
   background:#ffeded;
 }
@@ -659,12 +751,14 @@ tbody tr:hover,tbody tr.selected{
     width:48px;
     justify-self:end;
   }
-  .graph{
-    grid-template-columns:1fr;
-    align-items:stretch;
+  .namespace-row{
+    grid-template-columns:24px 34px minmax(0,1fr) max-content;
   }
-  .app-node:after,.graph-column:before{
+  .namespace-count{
     display:none;
+  }
+  .namespace-children{
+    grid-template-columns:1fr;
   }
   .bubble{
     max-width:92%;
