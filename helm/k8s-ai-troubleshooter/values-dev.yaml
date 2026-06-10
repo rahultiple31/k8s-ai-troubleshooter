@@ -1,5 +1,8 @@
 namespaceOverride: k8s-ai
 
+imagePullSecrets:
+  - name: ghcr-secret
+
 backend:
   image:
     repository: ghcr.io/rahultiple31/k8s-ai-backend

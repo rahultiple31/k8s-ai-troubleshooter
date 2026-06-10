@@ -90,13 +90,38 @@ npm run dev
 ArgoCD should sync this application from the Helm chart in
 `helm/k8s-ai-troubleshooter` or the manifests in `k8s/`.
 
-Create the namespace and OpenAI secret in the cluster before syncing:
+The GitHub Actions workflow can create the namespace and Kubernetes secrets
+before ArgoCD syncs the app. Add these repository secrets in GitHub:
+
+| Secret Name | Use |
+|---|---|
+| KUBECONFIG_B64 | Base64-encoded kubeconfig for the target cluster |
+| GHCR_PULL_USERNAME | GitHub username used by Kubernetes to pull private GHCR images |
+| GHCR_PULL_TOKEN | GitHub token with package read access |
+| GHCR_PULL_EMAIL | Email value for the Docker registry secret |
+| OPENAI_API_KEY | Optional API key stored as the `k8s-ai-secret` Kubernetes secret |
+
+Create `KUBECONFIG_B64` from your kubeconfig:
 
 ```bash
-kubectl create namespace k8s-ai
-kubectl create secret generic k8s-ai-secret \
+cat ~/.kube/config | base64 -w 0
+```
+
+On PowerShell:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\.kube\config"))
+```
+
+The workflow creates or updates this cluster secret automatically:
+
+```bash
+kubectl create secret docker-registry ghcr-secret \
   -n k8s-ai \
-  --from-literal=OPENAI_API_KEY='your-api-key' \
+  --docker-server=ghcr.io \
+  --docker-username="$GHCR_PULL_USERNAME" \
+  --docker-password="$GHCR_PULL_TOKEN" \
+  --docker-email="$GHCR_PULL_EMAIL" \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
@@ -157,12 +182,17 @@ helm/k8s-ai-troubleshooter/templates/
 
 ### GitHub Secrets
 
-No cluster deployment secret is required for this workflow. GitHub Actions uses
-the built-in `GITHUB_TOKEN` to push images to GHCR.
+GitHub Actions uses the built-in `GITHUB_TOKEN` to push images to GHCR. The
+following repository secrets are used to configure Kubernetes secrets for
+ArgoCD-managed deployments:
 
 | Secret Name | Use |
 |---|---|
-| OPENAI_API_KEY | Optional only if a separate secret automation workflow uses it |
+| KUBECONFIG_B64 | Base64-encoded kubeconfig for the target cluster |
+| GHCR_PULL_USERNAME | GitHub username used by Kubernetes image pulls |
+| GHCR_PULL_TOKEN | GitHub token with package read access |
+| GHCR_PULL_EMAIL | Email value for the Docker registry secret |
+| OPENAI_API_KEY | Optional API key synced to the `k8s-ai-secret` Kubernetes secret |
 
 ### GitHub Container Registry
 
@@ -172,6 +202,11 @@ The pipeline pushes images to GitHub Container Registry:
 ghcr.io/<github-username>/k8s-ai-backend:<commit-sha>
 ghcr.io/<github-username>/k8s-ai-frontend:<commit-sha>
 ```
+
+If the GHCR packages are private, the cluster must have a `ghcr-secret`
+image pull secret in the application namespace. The workflow creates that
+secret from GitHub repository secrets, and the Helm chart and standalone
+manifests reference it by default.
 
 ### Pipeline Flow
 

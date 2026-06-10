@@ -1,6 +1,7 @@
 namespaceOverride: ""
 
-imagePullSecrets: []
+imagePullSecrets:
+  - name: ghcr-secret
 
 backend:
   replicaCount: 1

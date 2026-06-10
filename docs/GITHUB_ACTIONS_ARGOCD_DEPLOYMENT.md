@@ -11,16 +11,53 @@ manifests from Git.
 1. Build backend Docker image.
 2. Build frontend Docker image.
 3. Push both images to GitHub Container Registry.
-4. Leave cluster deployment to ArgoCD.
+4. Create or update Kubernetes secrets needed by the ArgoCD-managed app.
+5. Leave application sync to ArgoCD.
 
 ## GitHub Secrets
 
-No cluster deployment secret is required for this workflow. GitHub Actions uses
-the built-in `GITHUB_TOKEN` to push images to GHCR.
+GitHub Actions uses the built-in `GITHUB_TOKEN` to push images to GHCR. Add
+these repository secrets so the workflow can configure Kubernetes secrets for
+the ArgoCD-managed app:
 
 | Secret | Description |
 |---|---|
-| `OPENAI_API_KEY` | Optional only if separate secret automation uses it |
+| `KUBECONFIG_B64` | Base64-encoded kubeconfig for the target cluster |
+| `GHCR_PULL_USERNAME` | GitHub username used by Kubernetes image pulls |
+| `GHCR_PULL_TOKEN` | GitHub token with package read access |
+| `GHCR_PULL_EMAIL` | Email value for the Docker registry secret |
+| `OPENAI_API_KEY` | Optional API key synced to the `k8s-ai-secret` Kubernetes secret |
+
+## Cluster Image Pull Secret
+
+If the GHCR packages are private, the workflow creates a pull secret in the
+target namespace before ArgoCD syncs the application. The Helm chart and
+standalone manifests reference `ghcr-secret` by default.
+
+Create `KUBECONFIG_B64` from your kubeconfig:
+
+```bash
+cat ~/.kube/config | base64 -w 0
+```
+
+On PowerShell:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\.kube\config"))
+```
+
+The workflow runs the equivalent of:
+
+```bash
+kubectl create namespace k8s-ai
+kubectl create secret docker-registry ghcr-secret \
+  -n k8s-ai \
+  --docker-server=ghcr.io \
+  --docker-username="$GHCR_PULL_USERNAME" \
+  --docker-password="$GHCR_PULL_TOKEN" \
+  --docker-email="$GHCR_PULL_EMAIL" \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
 
 ## Helm Chart Components
 

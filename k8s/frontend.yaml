@@ -13,6 +13,8 @@ spec:
       labels:
         app: k8s-ai-frontend
     spec:
+      imagePullSecrets:
+      - name: ghcr-secret
       containers:
       - name: frontend
         image: ghcr.io/rahultiple31/k8s-ai-frontend:latest
