@@ -6,7 +6,7 @@ backend:
   replicaCount: 1
   image:
     repository: docker.io/rahultipledocker/k8s-ai-backend
-    tag: 102e1e029a86aad55ee2cbf8c04d7fdcad7879ba
+    tag: 1c2b11e9cd0fe5afa5cea50e1725d497c7e37e45
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -34,7 +34,7 @@ frontend:
   replicaCount: 1
   image:
     repository: docker.io/rahultipledocker/k8s-ai-frontend
-    tag: 102e1e029a86aad55ee2cbf8c04d7fdcad7879ba
+    tag: 1c2b11e9cd0fe5afa5cea50e1725d497c7e37e45
     pullPolicy: IfNotPresent
   service:
     type: NodePort
