@@ -78,21 +78,27 @@ class PrometheusService:
             "node_storage": self.query(
                 'max by(instance)(100 - ((node_filesystem_avail_bytes{fstype!~"tmpfs|overlay",mountpoint!~"/run.*|/var/lib/kubelet/pods.*"} * 100) / node_filesystem_size_bytes{fstype!~"tmpfs|overlay",mountpoint!~"/run.*|/var/lib/kubelet/pods.*"}))'
             ),
-            "pod_cpu": self.query('sum by(namespace,pod)(rate(container_cpu_usage_seconds_total{container!="",pod!=""}[5m]))'),
-            "pod_memory": self.query('sum by(namespace,pod)(container_memory_working_set_bytes{container!="",pod!=""})'),
-            "pod_storage": self.query('sum by(namespace,pod)(container_fs_usage_bytes{container!="",pod!=""})'),
+            "pod_cpu": self.query('sum by(namespace,pod)(rate(container_cpu_usage_seconds_total{container!="",pod!=""}[5m])) * 100'),
+            "pod_memory": self.query(
+                '100 * sum by(namespace,pod)(container_memory_working_set_bytes{container!="",pod!=""}) / '
+                'clamp_min(sum by(namespace,pod)(container_spec_memory_limit_bytes{container!="",pod!=""} > 0), 1)'
+            ),
+            "pod_storage": self.query(
+                '100 * sum by(namespace,pod)(container_fs_usage_bytes{container!="",pod!=""}) / '
+                'clamp_min(sum by(namespace,pod)(container_fs_limit_bytes{container!="",pod!=""} > 0), 1)'
+            ),
             "pod_restarts": self.query('sum by(namespace,pod)(increase(kube_pod_container_status_restarts_total[15m]))'),
             "http_errors_code": self.query(
-                'sum by(namespace,service,code)(rate({__name__=~"http_requests_total|http_server_requests_seconds_count|nginx_ingress_controller_requests|traefik_service_requests_total|istio_requests_total",code=~"4..|5.."}[5m]))'
+                '100 * sum by(namespace,service,code)(rate({__name__=~"http_requests_total|http_server_requests_seconds_count|nginx_ingress_controller_requests|traefik_service_requests_total|istio_requests_total",code=~"4..|5.."}[5m])) / ignoring(code) group_left clamp_min(sum by(namespace,service)(rate({__name__=~"http_requests_total|http_server_requests_seconds_count|nginx_ingress_controller_requests|traefik_service_requests_total|istio_requests_total"}[5m])), 1)'
             ),
             "http_errors_status": self.query(
-                'sum by(namespace,service,status)(rate({__name__=~"http_requests_total|http_server_requests_seconds_count|nginx_ingress_controller_requests|traefik_service_requests_total|istio_requests_total",status=~"4..|5.."}[5m]))'
+                '100 * sum by(namespace,service,status)(rate({__name__=~"http_requests_total|http_server_requests_seconds_count|nginx_ingress_controller_requests|traefik_service_requests_total|istio_requests_total",status=~"4..|5.."}[5m])) / ignoring(status) group_left clamp_min(sum by(namespace,service)(rate({__name__=~"http_requests_total|http_server_requests_seconds_count|nginx_ingress_controller_requests|traefik_service_requests_total|istio_requests_total"}[5m])), 1)'
             ),
             "https_errors_code": self.query(
-                'sum by(namespace,service,code)(rate({__name__=~"http_requests_total|http_server_requests_seconds_count|nginx_ingress_controller_requests|traefik_service_requests_total|istio_requests_total",scheme="https",code=~"4..|5.."}[5m]))'
+                '100 * sum by(namespace,service,code)(rate({__name__=~"http_requests_total|http_server_requests_seconds_count|nginx_ingress_controller_requests|traefik_service_requests_total|istio_requests_total",scheme="https",code=~"4..|5.."}[5m])) / ignoring(code) group_left clamp_min(sum by(namespace,service)(rate({__name__=~"http_requests_total|http_server_requests_seconds_count|nginx_ingress_controller_requests|traefik_service_requests_total|istio_requests_total",scheme="https"}[5m])), 1)'
             ),
             "https_errors_status": self.query(
-                'sum by(namespace,service,status)(rate({__name__=~"http_requests_total|http_server_requests_seconds_count|nginx_ingress_controller_requests|traefik_service_requests_total|istio_requests_total",scheme="https",status=~"4..|5.."}[5m]))'
+                '100 * sum by(namespace,service,status)(rate({__name__=~"http_requests_total|http_server_requests_seconds_count|nginx_ingress_controller_requests|traefik_service_requests_total|istio_requests_total",scheme="https",status=~"4..|5.."}[5m])) / ignoring(status) group_left clamp_min(sum by(namespace,service)(rate({__name__=~"http_requests_total|http_server_requests_seconds_count|nginx_ingress_controller_requests|traefik_service_requests_total|istio_requests_total",scheme="https"}[5m])), 1)'
             ),
         }
         values = await asyncio.gather(*(safe_call(name, query, errors) for name, query in queries.items()))

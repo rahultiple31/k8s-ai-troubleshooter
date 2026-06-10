@@ -518,9 +518,9 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
   const readyNodes=Math.max((overview.nodes || 0) - (overview.not_ready_nodes || []).length,0);
   const isClusterHealthy=!unhealthyPods.length && !warningEvents.length && !(overview.not_ready_nodes || []).length;
   const podMetricRows=mergeMetricRows(
-    podCpuRows.map(row=>({...row,cpu:`${formatMetricValue(row.value)} cores`})),
-    podMemoryRows.map(row=>({...row,ram:`${formatMetricValue(row.value / 1024 / 1024)} MB`})),
-    podStorageRows.map(row=>({...row,storage:`${formatMetricValue(row.value / 1024 / 1024)} MB`})),
+    podCpuRows.map(row=>({...row,cpu:`CPU ${formatMetricValue(row.value)}%`,healthy:row.value<85})),
+    podMemoryRows.map(row=>({...row,ram:`RAM ${formatMetricValue(row.value)}%`,healthy:row.value<85})),
+    podStorageRows.map(row=>({...row,storage:`Storage ${formatMetricValue(row.value)}%`,healthy:row.value<85})),
   );
   const podHealthRows=pods.slice(0,8).map(pod=>({
     label:`${pod.namespace}/${pod.name}`,
@@ -595,7 +595,7 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
           <MetricList title="Pod use" rows={podMetricRows.slice(0,8).map(row=>({
             label:row.label,
             value:[row.cpu,row.ram,row.storage].filter(Boolean).join(' / ') || 'no metrics',
-            healthy:true,
+            healthy:row.healthy,
           }))} empty="No pod metrics" />
           <MetricList title="Pod health" rows={podHealthRows} empty="No pod health data" />
           <MetricList title="Pod warnings" rows={warningEvents.slice(0,8).map(event=>({
@@ -611,13 +611,13 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
         icon={<Network size={19}/>}
         open={openSection==='networking'}
         onToggle={()=>setOpenSection(openSection==='networking' ? '' : 'networking')}
-        badges={[`${services.length} svc`, `${formatMetricValue(sumRows(httpErrorRows))} http`, `${formatMetricValue(sumRows(httpsErrorRows))} https`]}
+        badges={[`${services.length} svc`, `${formatMetricValue(sumRows(httpErrorRows))}% http`, `${formatMetricValue(sumRows(httpsErrorRows))}% https`]}
         healthy={!sumRows(httpErrorRows) && !sumRows(httpsErrorRows)}
       >
         <div className="monitor-columns three">
           <MetricList title="Services" rows={serviceRows} empty="No services" />
-          <MetricList title="HTTP errors" rows={httpErrorRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)} err/s`,healthy:row.value===0}))} empty="No HTTP errors" />
-          <MetricList title="HTTPS errors" rows={httpsErrorRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)} err/s`,healthy:row.value===0}))} empty="No HTTPS errors" />
+          <MetricList title="HTTP errors" rows={httpErrorRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value===0}))} empty="No HTTP errors" />
+          <MetricList title="HTTPS errors" rows={httpsErrorRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value===0}))} empty="No HTTPS errors" />
         </div>
       </MonitoringGroup>
     </div>
@@ -712,7 +712,11 @@ function mergeMetricRows(...rowGroups){
   const merged=new Map();
   rowGroups.flat().forEach(row=>{
     const current=merged.get(row.label) || {label:row.label};
-    merged.set(row.label,{...current,...row});
+    const next={...current,...row};
+    if(current.healthy === false || row.healthy === false){
+      next.healthy=false;
+    }
+    merged.set(row.label,next);
   });
   return Array.from(merged.values());
 }
