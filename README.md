@@ -21,6 +21,10 @@ It monitors cluster objects, pod logs, events, node status, deployments, service
 User UI -> FastAPI Backend -> Kubernetes API / Prometheus / Logs / Events -> Rules Engine -> LLM Explanation
 ```
 
+Detailed flow diagrams for logs, metrics, events, frontend, backend,
+PostgreSQL, Redis, Prometheus, and ArgoCD are available in
+`docs/OBSERVABILITY_AND_APP_FLOW.md`.
+
 ## Main Use Cases
 
 ### Pod Pending
