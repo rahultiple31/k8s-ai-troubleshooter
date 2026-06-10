@@ -14,8 +14,8 @@ function App(){
   const [answer,setAnswer]=useState(null);
 
   async function load(){
-    const o=await fetch(`${API}/cluster/overview`).then(r=>r.json()).catch(()=>({}));
-    const p=await fetch(`${API}/cluster/pods`).then(r=>r.json()).catch(()=>[]);
+    const o=await fetch(`${API}/cluster/overview`).then(r=>r.ok ? r.json() : {}).catch(()=>({}));
+    const p=await fetch(`${API}/cluster/pods`).then(r=>r.ok ? r.json() : []).catch(()=>[]);
     setOverview(o); setPods(p);
     if(!podName && p.length){setNamespace(p[0].namespace); setPodName(p[0].name)}
   }
@@ -23,8 +23,13 @@ function App(){
 
   async function askAI(){
     setAnswer({loading:true});
-    const res=await fetch(`${API}/ai/troubleshoot`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question, namespace, pod_name:podName})});
-    setAnswer(await res.json());
+    try {
+      const res=await fetch(`${API}/ai/troubleshoot`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question, namespace, pod_name:podName})});
+      const data=await res.json();
+      setAnswer(res.ok ? data : {error:data.detail || 'Troubleshooting request failed'});
+    } catch (err) {
+      setAnswer({error:`Unable to reach backend: ${err.message}`});
+    }
   }
 
   return <div className="page">

@@ -1,12 +1,19 @@
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
+from kubernetes.config.config_exception import ConfigException
 
 class KubernetesService:
     def __init__(self):
         try:
             config.load_incluster_config()
-        except Exception:
-            config.load_kube_config()
+        except ConfigException:
+            try:
+                config.load_kube_config()
+            except ConfigException as exc:
+                raise RuntimeError(
+                    "Kubernetes configuration was not found. Run inside a cluster "
+                    "with a service account or provide a valid kubeconfig."
+                ) from exc
         self.core = client.CoreV1Api()
         self.apps = client.AppsV1Api()
         self.networking = client.NetworkingV1Api()

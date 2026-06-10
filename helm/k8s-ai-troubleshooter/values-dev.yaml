@@ -2,7 +2,7 @@ namespaceOverride: k8s-ai
 
 backend:
   image:
-    repository: ghcr.io/YOUR_GITHUB_USERNAME/k8s-ai-backend
+    repository: ghcr.io/rahultiple31/k8s-ai-backend
     tag: latest
     pullPolicy: Always
   openai:
@@ -10,7 +10,7 @@ backend:
 
 frontend:
   image:
-    repository: ghcr.io/YOUR_GITHUB_USERNAME/k8s-ai-frontend
+    repository: ghcr.io/rahultiple31/k8s-ai-frontend
     tag: latest
     pullPolicy: Always
   service:

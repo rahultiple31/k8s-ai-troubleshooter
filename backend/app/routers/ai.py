@@ -8,8 +8,6 @@ router = APIRouter()
 
 @router.post("/troubleshoot")
 def troubleshoot(req: TroubleshootRequest):
-    k8s = KubernetesService()
-
     if not req.namespace or not req.pod_name:
         return {
             "reason": "Please provide namespace and pod_name for deep pod troubleshooting.",
@@ -19,12 +17,15 @@ def troubleshoot(req: TroubleshootRequest):
         }
 
     try:
+        k8s = KubernetesService()
         pod = k8s.get_pod(req.namespace, req.pod_name)
         events = k8s.get_pod_events(req.namespace, req.pod_name)
         container = pod.spec.containers[0].name if pod.spec.containers else None
         logs = k8s.get_pod_logs(req.namespace, req.pod_name, container=container)
         nodes = k8s.list_nodes()
         pvcs = k8s.list_pvcs(req.namespace)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 

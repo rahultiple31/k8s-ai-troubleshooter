@@ -17,11 +17,14 @@ Kubernetes findings: {rule_result}
 Return JSON-like answer with reason, fix, commands, risk, and confidence.
 Do not suggest dangerous commands without warning.
 """
-        response = self.client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-        )
         enhanced = dict(rule_result)
-        enhanced["ai_explanation"] = response.choices[0].message.content
+        try:
+            response = self.client.chat.completions.create(
+                model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+            )
+            enhanced["ai_explanation"] = response.choices[0].message.content
+        except Exception as exc:
+            enhanced["ai_error"] = f"Unable to get AI explanation: {exc}"
         return enhanced
