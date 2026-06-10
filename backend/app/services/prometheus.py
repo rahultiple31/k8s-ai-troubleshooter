@@ -44,13 +44,6 @@ class PrometheusService:
         selector = COREDNS_SELECTOR
         errors = {}
 
-        async def safe_call(name, query):
-            try:
-                return await query
-            except Exception as exc:
-                errors[name] = str(exc)
-                return {"status": "error", "data": {"result": []}, "error": str(exc)}
-
         queries = {
             "requests_by_instance": self.query(f"sum by(instance)(rate(coredns_dns_requests_total{{{selector}}}[5m]))"),
             "requests_by_type": self.query(f"sum by(type)(rate(coredns_dns_requests_total{{{selector}}}[5m]))"),
@@ -66,8 +59,49 @@ class PrometheusService:
             "memory": self.query(f"sum(process_resident_memory_bytes{{{selector}}})"),
             "cpu": self.query(f"sum(rate(process_cpu_seconds_total{{{selector}}}[5m]))"),
         }
-        values = await asyncio.gather(*(safe_call(name, query) for name, query in queries.items()))
+        values = await asyncio.gather(*(safe_call(name, query, errors) for name, query in queries.items()))
         return {
             **dict(zip(queries.keys(), values)),
             "errors": errors,
         }
+
+    async def cluster_dashboard(self):
+        errors = {}
+        queries = {
+            "node_cpu": self.query('100 - (avg by(instance)(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)'),
+            "node_memory": self.query('(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100'),
+            "node_storage": self.query(
+                '100 - ((node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} * 100) / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"})'
+            ),
+            "network_receive": self.query(
+                'sum by(instance)(rate(node_network_receive_bytes_total{device!~"lo|veth.*|cali.*|flannel.*|docker.*"}[5m]))'
+            ),
+            "network_transmit": self.query(
+                'sum by(instance)(rate(node_network_transmit_bytes_total{device!~"lo|veth.*|cali.*|flannel.*|docker.*"}[5m]))'
+            ),
+            "pod_cpu": self.query('sum by(namespace,pod)(rate(container_cpu_usage_seconds_total{container!="",pod!=""}[5m]))'),
+            "pod_memory": self.query('sum by(namespace,pod)(container_memory_working_set_bytes{container!="",pod!=""})'),
+            "pod_restarts": self.query('sum by(namespace,pod)(increase(kube_pod_container_status_restarts_total[15m]))'),
+            "node_cpu_range": self.query_range('100 - (avg by(instance)(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)'),
+            "node_memory_range": self.query_range('(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100'),
+            "network_receive_range": self.query_range(
+                'sum by(instance)(rate(node_network_receive_bytes_total{device!~"lo|veth.*|cali.*|flannel.*|docker.*"}[5m]))'
+            ),
+            "network_transmit_range": self.query_range(
+                'sum by(instance)(rate(node_network_transmit_bytes_total{device!~"lo|veth.*|cali.*|flannel.*|docker.*"}[5m]))'
+            ),
+            "pod_restarts_range": self.query_range('sum(increase(kube_pod_container_status_restarts_total[15m]))'),
+        }
+        values = await asyncio.gather(*(safe_call(name, query, errors) for name, query in queries.items()))
+        return {
+            **dict(zip(queries.keys(), values)),
+            "errors": errors,
+        }
+
+
+async def safe_call(name, query, errors):
+    try:
+        return await query
+    except Exception as exc:
+        errors[name] = str(exc)
+        return {"status": "error", "data": {"result": []}, "error": str(exc)}

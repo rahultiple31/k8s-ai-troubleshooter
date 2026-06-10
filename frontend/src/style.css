@@ -1051,6 +1051,10 @@ button{
   gap:7px;
 }
 
+.cluster-stat-row{
+  grid-template-columns:repeat(6,minmax(0,1fr));
+}
+
 .grafana-chart-grid{
   display:grid;
   grid-template-columns:repeat(2,minmax(0,1fr));
@@ -1192,6 +1196,43 @@ button{
   display:grid;
   gap:9px;
   padding:15px;
+}
+
+.resource-list-panel{
+  min-height:220px;
+}
+
+.resource-list-table{
+  display:grid;
+  gap:7px;
+  padding:12px;
+}
+
+.resource-list-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(90px,max-content);
+  gap:10px;
+  align-items:center;
+  border-bottom:1px solid #20262d;
+  padding:7px 0;
+  color:#c8d0d9;
+  font-size:12px;
+}
+
+.resource-list-row span{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.resource-list-row strong{
+  min-width:0;
+  color:#5eb7ff;
+  text-align:right;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
 }
 
 .bar-row{
@@ -1546,7 +1587,7 @@ button{
   .bubble{
     max-width:92%;
   }
-  .grafana-chart-grid,.stat-row,.pod-strip{
+  .grafana-chart-grid,.stat-row,.cluster-stat-row,.pod-strip{
     grid-template-columns:1fr;
   }
 }

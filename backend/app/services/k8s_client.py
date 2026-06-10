@@ -63,6 +63,11 @@ class KubernetesService:
             return self.apps.list_namespaced_deployment(namespace).items
         return self.apps.list_deployment_for_all_namespaces().items
 
+    def list_ingresses(self, namespace=None):
+        if namespace:
+            return self.networking.list_namespaced_ingress(namespace).items
+        return self.networking.list_ingress_for_all_namespaces().items
+
     def get_metrics_summary(self):
         # Metrics API may not exist in all clusters. Prometheus service handles deep metrics.
         return {"message": "Use Prometheus endpoint /api/cluster/prometheus for detailed metrics."}

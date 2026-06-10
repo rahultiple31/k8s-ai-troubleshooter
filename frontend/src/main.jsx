@@ -42,6 +42,7 @@ function App(){
   const [pods,setPods]=useState([]);
   const [services,setServices]=useState([]);
   const [deployments,setDeployments]=useState([]);
+  const [ingresses,setIngresses]=useState([]);
   const [events,setEvents]=useState([]);
   const [question,setQuestion]=useState('Fix this Kubernetes pod issue and provide copy-paste kubectl commands.');
   const [namespace,setNamespace]=useState('default');
@@ -72,18 +73,20 @@ function App(){
       ['pods', fetchClusterJson('/cluster/pods')],
       ['services', fetchClusterJson('/cluster/services')],
       ['deployments', fetchClusterJson('/cluster/deployments')],
+      ['ingresses', fetchClusterJson('/cluster/ingresses')],
       ['events', fetchClusterJson('/cluster/events')],
     ];
 
     try {
       const results=await Promise.allSettled(requests.map(([,request])=>request));
       const failures=[];
-      const [overviewResult,podsResult,servicesResult,deploymentsResult,eventsResult]=results;
+      const [overviewResult,podsResult,servicesResult,deploymentsResult,ingressesResult,eventsResult]=results;
 
       if(overviewResult.status==='fulfilled') setOverview(overviewResult.value); else failures.push('overview');
       if(podsResult.status==='fulfilled') setPods(podsResult.value); else failures.push('pods');
       if(servicesResult.status==='fulfilled') setServices(servicesResult.value); else failures.push('services');
       if(deploymentsResult.status==='fulfilled') setDeployments(deploymentsResult.value); else failures.push('deployments');
+      if(ingressesResult.status==='fulfilled') setIngresses(ingressesResult.value); else failures.push('ingresses');
       if(eventsResult.status==='fulfilled') setEvents(eventsResult.value); else failures.push('events');
 
       setLastRefresh(new Date());
@@ -271,7 +274,15 @@ function App(){
 
         {activeView==='events' && <EventsPanel events={filteredEvents} lastRefresh={lastRefresh} />}
 
-        {activeView==='monitoring' && <MonitoringPanel pods={pods} lastRefresh={lastRefresh} />}
+        {activeView==='monitoring' && <MonitoringPanel
+          overview={overview}
+          pods={pods}
+          services={services}
+          deployments={deployments}
+          ingresses={ingresses}
+          events={events}
+          lastRefresh={lastRefresh}
+        />}
 
         {activeView==='terminal' && <>
           <TerminalPanel
@@ -468,8 +479,8 @@ function EventsPanel({events,lastRefresh}){
   </section>;
 }
 
-function MonitoringPanel({pods,lastRefresh}){
-  const [metrics,setMetrics]=useState({coredns:null});
+function MonitoringPanel({overview,pods,services,deployments,ingresses,events,lastRefresh}){
+  const [metrics,setMetrics]=useState({cluster:null});
   const [loadingMetrics,setLoadingMetrics]=useState(false);
   const [metricError,setMetricError]=useState('');
 
@@ -477,10 +488,10 @@ function MonitoringPanel({pods,lastRefresh}){
     setLoadingMetrics(true);
     setMetricError('');
     try {
-      const coredns=await fetchClusterJson('/cluster/prometheus/coredns');
-      setMetrics({coredns});
+      const cluster=await fetchClusterJson('/cluster/prometheus/cluster-dashboard');
+      setMetrics({cluster});
     } catch (err) {
-      setMetricError(`CoreDNS Prometheus metrics unavailable: ${err.message}`);
+      setMetricError(`Cluster Prometheus metrics unavailable: ${err.message}`);
     }
     setLoadingMetrics(false);
   }
@@ -489,30 +500,26 @@ function MonitoringPanel({pods,lastRefresh}){
     loadMetrics();
   },[]);
 
-  const coredns=metrics.coredns || {};
-  const corednsPods=pods.filter(pod=>/coredns|kube-dns/i.test(pod.name));
-  const unhealthyCoredns=corednsPods.filter(pod=>pod.phase!=='Running' && pod.phase!=='Succeeded');
-  const requestRows=prometheusRows(coredns.requests_by_instance,['instance','pod']).slice(0,5);
-  const requestTypeRows=prometheusRows(coredns.requests_by_type,['type']).slice(0,8);
-  const responseRows=prometheusRows(coredns.responses_by_code,['rcode']).slice(0,8);
-  const cacheHits=firstPromValue(coredns.cache_hits);
-  const cacheMisses=firstPromValue(coredns.cache_misses);
-  const cacheTotal=cacheHits + cacheMisses;
-  const cacheHitRate=cacheTotal ? (cacheHits / cacheTotal) * 100 : 0;
-  const panics=firstPromValue(coredns.panics);
-  const failedReloads=firstPromValue(coredns.failed_reloads);
-  const cpu=firstPromValue(coredns.cpu);
-  const memory=firstPromValue(coredns.memory);
-  const cacheSeries=[
-    ...rangeSeries(coredns.cache_hits_range,['cache','job','instance']).map(item=>({...item,label:item.label==='cluster' ? 'hits' : item.label})),
-    ...rangeSeries(coredns.cache_misses_range,['cache','job','instance']).map(item=>({...item,label:item.label==='cluster' ? 'misses' : item.label})),
-  ];
-  const promErrors=Object.keys(coredns.errors || {});
+  const cluster=metrics.cluster || {};
+  const unhealthyPods=pods.filter(pod=>pod.phase!=='Running' && pod.phase!=='Succeeded');
+  const warningEvents=events.filter(event=>(event.type || '').toLowerCase()==='warning');
+  const restartRows=prometheusRows(cluster.pod_restarts,['namespace','pod']).filter(row=>row.value>0).slice(0,8);
+  const nodeCpuRows=prometheusRows(cluster.node_cpu,['instance']).slice(0,8);
+  const nodeMemoryRows=prometheusRows(cluster.node_memory,['instance']).slice(0,8);
+  const storageRows=prometheusRows(cluster.node_storage,['instance','mountpoint']).slice(0,8);
+  const podCpuRows=prometheusRows(cluster.pod_cpu,['namespace','pod']).slice(0,8);
+  const podMemoryRows=prometheusRows(cluster.pod_memory,['namespace','pod']).slice(0,8);
+  const receiveRows=prometheusRows(cluster.network_receive,['instance']).slice(0,8);
+  const transmitRows=prometheusRows(cluster.network_transmit,['instance']).slice(0,8);
+  const nodeCpuAvg=averageRows(nodeCpuRows);
+  const nodeMemoryAvg=averageRows(nodeMemoryRows);
+  const storageMax=maxRows(storageRows);
+  const promErrors=Object.keys(cluster.errors || {});
 
   return <section className="monitoring-panel">
     <div className="grafana-heading">
       <div>
-        <span>Network / CoreDNS</span>
+        <span>Cluster / Kubernetes</span>
         <h3>Monitoring dashboard</h3>
       </div>
       <div className="grafana-actions">
@@ -526,47 +533,81 @@ function MonitoringPanel({pods,lastRefresh}){
 
     <div className="grafana-body">
       {metricError && <div className="metric-error">{metricError}</div>}
-      {!!promErrors.length && <div className="metric-error">Some CoreDNS metrics are unavailable: {promErrors.join(', ')}</div>}
+      {!!promErrors.length && <div className="metric-error">Some Prometheus metrics are unavailable: {promErrors.join(', ')}</div>}
       <div className="grafana-filter-row">
-        <span>Instance</span>
-        <strong>{requestRows.map(row=>row.label).join(' + ') || 'CoreDNS metrics'}</strong>
+        <span>Scope</span>
+        <strong>all namespaces / cluster resources / last 1 hour</strong>
       </div>
 
       <DashboardSection title="Global stats">
-        <PiePanel title="Requests by instance" rows={requestRows} />
+        <div className="stat-row cluster-stat-row">
+          <GrafanaStat title="Nodes" value={String(overview.nodes ?? '-')} tone={(overview.not_ready_nodes || []).length ? 'bad' : 'good'} />
+          <GrafanaStat title="Pods" value={String(pods.length)} tone={unhealthyPods.length ? 'bad' : 'good'} />
+          <GrafanaStat title="Services" value={String(services.length)} tone="info" />
+          <GrafanaStat title="Ingress" value={String(ingresses.length)} tone="info" />
+          <GrafanaStat title="Warning Events" value={String(warningEvents.length)} tone={warningEvents.length ? 'bad' : 'good'} />
+          <GrafanaStat title="Restarts 15m" value={formatMetricValue(sumRows(restartRows))} tone={sumRows(restartRows) ? 'bad' : 'good'} />
+        </div>
       </DashboardSection>
 
-      <DashboardSection title="Health">
+      <DashboardSection title="Cluster health">
         <div className="stat-row">
-          <GrafanaStat title="CoreDNS Pods" value={String(corednsPods.length || '-')} tone={unhealthyCoredns.length ? 'bad' : 'good'} />
-          <GrafanaStat title="Unhealthy Pods" value={String(unhealthyCoredns.length)} tone={unhealthyCoredns.length ? 'bad' : 'good'} />
-          <GrafanaStat title="Panics" value={formatMetricValue(panics)} tone={panics ? 'bad' : 'good'} />
-          <GrafanaStat title="Failed Reloads" value={formatMetricValue(failedReloads)} tone={failedReloads ? 'bad' : 'good'} />
-          <GaugePanel title="CPU Time" value={cpu * 1000} suffix=" ms" />
-          <GrafanaStat title="Memory Usage" value={formatBytes(memory)} tone="info" />
+          <GaugePanel title="CPU Usage" value={nodeCpuAvg} suffix="%" />
+          <GaugePanel title="RAM Usage" value={nodeMemoryAvg} suffix="%" />
+          <GaugePanel title="Storage Used" value={storageMax} suffix="%" />
+          <GrafanaStat title="Deployments" value={String(deployments.length)} tone="info" />
+          <GrafanaStat title="Unhealthy Pods" value={String(unhealthyPods.length)} tone={unhealthyPods.length ? 'bad' : 'good'} />
+          <GrafanaStat title="Not Ready Nodes" value={String((overview.not_ready_nodes || []).length)} tone={(overview.not_ready_nodes || []).length ? 'bad' : 'good'} />
         </div>
       </DashboardSection>
 
-      <DashboardSection title="Local">
+      <DashboardSection title="Nodes, CPU, RAM and storage">
         <div className="grafana-chart-grid">
-          <LinePanel title="Requests total" series={rangeSeries(coredns.requests_total_range,['instance','job'])} unit="req/s" />
-          <BarPanel title="Requests by type" rows={requestTypeRows} unit="req/s" />
-          <LinePanel title="Responses by code" series={rangeSeries(coredns.responses_range,['rcode'])} unit="req/s" />
-          <GaugePanel title="Cache hitrate" value={cacheHitRate} suffix="%" />
-          <PiePanel title="Responses by code" rows={responseRows} />
-          <LinePanel title="Cache activity" series={cacheSeries} unit="req/s" />
+          <LinePanel title="Node CPU usage" series={rangeSeries(cluster.node_cpu_range,['instance'])} unit="%" />
+          <LinePanel title="Node memory usage" series={rangeSeries(cluster.node_memory_range,['instance'])} unit="%" />
+          <BarPanel title="Top node storage usage" rows={storageRows} unit="%" />
+          <BarPanel title="Top pod memory usage" rows={podMemoryRows.map(row=>({...row,value:row.value / 1024 / 1024}))} unit="MB" />
         </div>
       </DashboardSection>
 
-      <DashboardSection title="CoreDNS Pods">
+      <DashboardSection title="Pods, logs and events">
+        <div className="grafana-chart-grid">
+          <BarPanel title="Top pod CPU" rows={podCpuRows} unit="cores" />
+          <BarPanel title="Pod restarts from logs/metrics" rows={restartRows} unit="restarts" />
+          <LinePanel title="Restart trend" series={rangeSeries(cluster.pod_restarts_range,['pod','namespace'])} unit="restarts" />
+          <ResourceListPanel title="Recent warning events" rows={warningEvents.slice(0,8).map(event=>({
+            label:`${event.namespace}/${event.object_name || event.name}`,
+            value:event.reason,
+          }))} empty="No warning events" />
+        </div>
+      </DashboardSection>
+
+      <DashboardSection title="Services, ingress and networking">
+        <div className="grafana-chart-grid">
+          <ResourceListPanel title="Services" rows={services.slice(0,10).map(service=>({
+            label:`${service.namespace}/${service.name}`,
+            value:`${service.type} ${service.ports?.map(port=>port.port).join(', ') || ''}`,
+          }))} empty="No services" />
+          <ResourceListPanel title="Ingress" rows={ingresses.slice(0,10).map(ingress=>({
+            label:`${ingress.namespace}/${ingress.name}`,
+            value:ingress.hosts?.join(', ') || ingress.class_name || 'no host',
+          }))} empty="No ingresses" />
+          <BarPanel title="Network receive now" rows={receiveRows} unit="B/s" />
+          <BarPanel title="Network transmit now" rows={transmitRows} unit="B/s" />
+          <LinePanel title="Network receive trend" series={rangeSeries(cluster.network_receive_range,['instance'])} unit="B/s" />
+          <LinePanel title="Network transmit trend" series={rangeSeries(cluster.network_transmit_range,['instance'])} unit="B/s" />
+        </div>
+      </DashboardSection>
+
+      <DashboardSection title="Pod health">
         <div className="pod-strip">
-          {corednsPods.map(pod=>
+          {pods.slice(0,18).map(pod=>
             <div className={`pod-pill ${pod.phase==='Running' ? 'ok' : 'bad'}`} key={`${pod.namespace}-${pod.name}`}>
               <span>{pod.namespace}/{pod.name}</span>
               <strong>{pod.phase}</strong>
             </div>
           )}
-          {!corednsPods.length && <div className="grafana-empty">No CoreDNS pods found in current cluster data</div>}
+          {!pods.length && <div className="grafana-empty">No pods found in current cluster data</div>}
         </div>
       </DashboardSection>
 
@@ -604,7 +645,7 @@ function PiePanel({title,rows}){
       <div className="pie-chart" style={{background:`conic-gradient(${gradient})`}} />
       <div className="legend-list">
         {rows.map((row,index)=>
-          <div className="legend-row" key={row.label}>
+          <div className="legend-row" key={`${row.label}-${index}`}>
             <i style={{background:chartColors[index % chartColors.length]}} />
             <span>{row.label}</span>
             <strong>{formatMetricValue(row.value)}</strong>
@@ -623,11 +664,11 @@ function LinePanel({title,series,unit}){
       {[0,1,2,3].map(line=><line key={line} x1="0" x2="520" y1={20 + line*38} y2={20 + line*38} />)}
       {[0,1,2,3,4,5].map(line=><line key={`v-${line}`} y1="10" y2="158" x1={40 + line*86} x2={40 + line*86} />)}
       {series.map((item,index)=>
-        <polyline key={item.label} points={linePoints(item.values,series)} style={{stroke:chartColors[index % chartColors.length]}} />
+        <polyline key={`${item.label}-${index}`} points={linePoints(item.values,series)} style={{stroke:chartColors[index % chartColors.length]}} />
       )}
     </svg>
     <div className="chart-legend">
-      {series.slice(0,5).map((item,index)=><span key={item.label}><i style={{background:chartColors[index % chartColors.length]}} />{item.label}</span>)}
+      {series.slice(0,5).map((item,index)=><span key={`${item.label}-${index}`}><i style={{background:chartColors[index % chartColors.length]}} />{item.label}</span>)}
       {!series.length && <span>No {unit} data</span>}
     </div>
   </div>;
@@ -639,13 +680,28 @@ function BarPanel({title,rows,unit}){
     <PanelTitle title={title} />
     <div className="bar-list">
       {rows.map((row,index)=>
-        <div className="bar-row" key={row.label}>
+        <div className="bar-row" key={`${row.label}-${index}`}>
           <span>{row.label}</span>
           <div><i style={{width:`${Math.max((row.value / max) * 100,3)}%`, background:chartColors[index % chartColors.length]}} /></div>
           <strong>{formatMetricValue(row.value)} {unit}</strong>
         </div>
       )}
       {!rows.length && <div className="grafana-empty">No data</div>}
+    </div>
+  </div>;
+}
+
+function ResourceListPanel({title,rows,empty}){
+  return <div className="grafana-panel resource-list-panel">
+    <PanelTitle title={title} />
+    <div className="resource-list-table">
+      {rows.map((row,index)=>
+        <div className="resource-list-row" key={`${row.label}-${row.value}-${index}`}>
+          <span>{row.label}</span>
+          <strong>{row.value}</strong>
+        </div>
+      )}
+      {!rows.length && <div className="grafana-empty">{empty}</div>}
     </div>
   </div>;
 }
@@ -669,10 +725,9 @@ const chartColors=['#73bf69','#f2cc0c','#6ed0e0','#ff9830','#f2495c','#b877d9','
 function prometheusRows(response,labels=['instance','pod','namespace','job']){
   return (response?.data?.result || []).map(item=>{
     const metric=item.metric || {};
-    const label=labels.map(labelKey=>metric[labelKey]).find(Boolean) || 'cluster';
     return {
-      label,
-      value:Number(item.value?.[1] || 0),
+      label:metricLabel(metric,labels),
+      value:promNumber(item.value?.[1]),
     };
   }).sort((a,b)=>b.value-a.value);
 }
@@ -681,10 +736,21 @@ function rangeSeries(response,labels=['instance','job']){
   return (response?.data?.result || []).slice(0,6).map(item=>{
     const metric=item.metric || {};
     return {
-      label:labels.map(labelKey=>metric[labelKey]).find(Boolean) || 'cluster',
-      values:(item.values || []).map(value=>Number(value[1] || 0)),
+      label:metricLabel(metric,labels),
+      values:(item.values || []).map(value=>promNumber(value[1])),
     };
   });
+}
+
+function promNumber(value){
+  const number=Number(value || 0);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function metricLabel(metric,labels){
+  const values=labels.map(labelKey=>metric[labelKey]).filter(Boolean);
+  if(values.length) return values.join('/');
+  return metric.instance || metric.pod || metric.namespace || metric.job || 'cluster';
 }
 
 function linePoints(values,series){
@@ -700,6 +766,19 @@ function linePoints(values,series){
 
 function firstPromValue(response){
   return Number(response?.data?.result?.[0]?.value?.[1] || 0);
+}
+
+function sumRows(rows){
+  return rows.reduce((sum,row)=>sum + (Number(row.value) || 0),0);
+}
+
+function averageRows(rows){
+  if(!rows.length) return 0;
+  return sumRows(rows) / rows.length;
+}
+
+function maxRows(rows){
+  return rows.length ? Math.max(...rows.map(row=>Number(row.value) || 0)) : 0;
 }
 
 function formatMetricValue(value){

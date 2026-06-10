@@ -88,6 +88,28 @@ def deployments(namespace: str | None = None):
         "available_replicas": d.status.available_replicas or 0,
     } for d in deployment_list]
 
+@router.get("/ingresses")
+def ingresses(namespace: str | None = None):
+    k8s = get_kubernetes_service()
+    try:
+        ingress_list = k8s.list_ingresses(namespace)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return [{
+        "namespace": ingress.metadata.namespace,
+        "name": ingress.metadata.name,
+        "class_name": ingress.spec.ingress_class_name if ingress.spec else "",
+        "hosts": [
+            rule.host
+            for rule in (ingress.spec.rules or [])
+            if rule.host
+        ] if ingress.spec else [],
+        "addresses": [
+            item.ip or item.hostname
+            for item in ((ingress.status.load_balancer.ingress or []) if ingress.status and ingress.status.load_balancer else [])
+        ],
+    } for ingress in ingress_list]
+
 @router.get("/events")
 def events(namespace: str | None = None):
     k8s = get_kubernetes_service()
@@ -135,3 +157,7 @@ async def pod_restarts():
 @router.get("/prometheus/coredns")
 async def coredns_dashboard():
     return await PrometheusService().coredns_dashboard()
+
+@router.get("/prometheus/cluster-dashboard")
+async def cluster_dashboard():
+    return await PrometheusService().cluster_dashboard()
