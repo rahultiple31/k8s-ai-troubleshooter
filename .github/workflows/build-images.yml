@@ -8,7 +8,7 @@ on:
       - master
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: k8s-ai-${{ github.ref }}
@@ -76,3 +76,48 @@ jobs:
             ${{ steps.image.outputs.frontend_image }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Update Helm image tags
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          tag = os.environ["IMAGE_TAG"]
+          files = [
+              Path("helm/k8s-ai-troubleshooter/values.yaml"),
+              Path("helm/k8s-ai-troubleshooter/values-dev.yaml"),
+          ]
+
+          for path in files:
+              lines = path.read_text().splitlines()
+              section = None
+              updated = []
+              for line in lines:
+                  if line.startswith("backend:"):
+                      section = "backend"
+                  elif line.startswith("frontend:"):
+                      section = "frontend"
+                  elif line and not line.startswith(" ") and line.endswith(":"):
+                      section = None
+
+                  if section in {"backend", "frontend"} and line.strip().startswith("tag:"):
+                      indent = line[: len(line) - len(line.lstrip())]
+                      line = f"{indent}tag: {tag}"
+
+                  updated.append(line)
+
+              path.write_text("\n".join(updated) + "\n")
+          PY
+
+      - name: Commit Helm image tag updates
+        run: |
+          if git diff --quiet -- helm/k8s-ai-troubleshooter/values.yaml helm/k8s-ai-troubleshooter/values-dev.yaml; then
+            echo "Helm image tags are already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add helm/k8s-ai-troubleshooter/values.yaml helm/k8s-ai-troubleshooter/values-dev.yaml
+          git commit -m "chore: update deployed image tags ${IMAGE_TAG} [skip ci]"
+          git push

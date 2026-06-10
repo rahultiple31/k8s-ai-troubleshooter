@@ -13,6 +13,23 @@ manifests from Git.
 3. Push both images to Docker Hub.
 4. Leave application sync to ArgoCD.
 
+## ArgoCD Application
+
+Use the provided Application manifest:
+
+```bash
+kubectl apply -f argocd/k8s-ai-troubleshooter-application.yaml
+```
+
+It syncs `helm/k8s-ai-troubleshooter`, deploys workloads into `k8s-ai`, enables
+prune/self-heal, and uses Docker Hub images. If a previous sync created
+`argocd/k8s-ai-backend` or `argocd/k8s-ai-frontend`, delete those stale
+deployments after syncing:
+
+```bash
+kubectl delete deployment k8s-ai-backend k8s-ai-frontend -n argocd --ignore-not-found
+```
+
 ## GitHub Secrets
 
 No Kubernetes cluster credentials are required in the workflow. Add these
@@ -26,6 +43,11 @@ repository secrets so GitHub Actions can push images to Docker Hub:
 The workflow pushes to the Docker Hub namespace configured as
 `DOCKERHUB_NAMESPACE` in `.github/workflows/build-images.yml`, currently
 `rahultipledocker`, which matches the Helm values.
+
+After image push, the workflow commits the new commit-SHA image tag into
+`helm/k8s-ai-troubleshooter/values.yaml` and `values-dev.yaml`. The commit uses
+`[skip ci]` so it does not start another build loop. ArgoCD automated sync then
+deploys the updated Helm chart.
 
 ## Docker Hub Images
 

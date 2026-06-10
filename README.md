@@ -93,10 +93,27 @@ ArgoCD should sync this application from the Helm chart in
 GitHub Actions does not connect to the Kubernetes cluster. It only builds and
 pushes images to Docker Hub. ArgoCD deploys by syncing the Helm chart from Git.
 
+An ArgoCD Application manifest is provided at
+`argocd/k8s-ai-troubleshooter-application.yaml`. It targets the Helm chart,
+deploys into `k8s-ai`, prunes old resources, and uses Docker Hub images.
+
 The Helm chart deploys application workloads into the `k8s-ai` namespace by
 default. If your pods appear in the `argocd` namespace, resync the ArgoCD
 application after this change and enable prune, or delete the old deployments
 from `argocd`.
+
+Apply or update the ArgoCD app:
+
+```bash
+kubectl apply -f argocd/k8s-ai-troubleshooter-application.yaml
+```
+
+Then sync from ArgoCD. If old pods still exist in `argocd`, remove the stale
+deployments:
+
+```bash
+kubectl delete deployment k8s-ai-backend k8s-ai-frontend -n argocd --ignore-not-found
+```
 
 The chart now uses public Docker Hub images by default, so no image pull secret
 is required unless you make those Docker Hub repositories private.
@@ -170,6 +187,11 @@ The workflow pushes to the Docker Hub namespace configured as
 `DOCKERHUB_NAMESPACE` in `.github/workflows/build-images.yml`, currently
 `rahultipledocker`, which matches the Helm values.
 
+After both images are pushed, the workflow updates
+`helm/k8s-ai-troubleshooter/values.yaml` and `values-dev.yaml` with the commit
+SHA image tag, commits that change with `[skip ci]`, and pushes it back to Git.
+ArgoCD automated sync then deploys that exact image tag.
+
 ### Docker Hub
 
 The pipeline pushes images to Docker Hub:
@@ -221,8 +243,8 @@ http://localhost:8080
 ### Upgrade Application
 
 Push code to `main` or run the workflow manually from GitHub Actions. The
-pipeline will build and publish new images, and ArgoCD will handle sync from
-Git.
+pipeline will build and publish new images, update the Helm image tags in Git,
+and ArgoCD will automatically sync the changed chart.
 
 ### Rollback
 

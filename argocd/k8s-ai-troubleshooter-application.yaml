@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: k8s-ai-troubleshooter
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/rahultiple31/k8s-ai-troubleshooter.git
+    targetRevision: main
+    path: helm/k8s-ai-troubleshooter
+    helm:
+      valueFiles:
+        - values.yaml
+      parameters:
+        - name: namespaceOverride
+          value: k8s-ai
+        - name: backend.image.repository
+          value: docker.io/rahultipledocker/k8s-ai-backend
+        - name: frontend.image.repository
+          value: docker.io/rahultipledocker/k8s-ai-frontend
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: k8s-ai
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
