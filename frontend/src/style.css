@@ -445,7 +445,7 @@ button{
 .graph{
   flex:1;
   min-height:300px;
-  padding:10px;
+  padding:8px;
   background:#ecf3f6;
   overflow:auto;
 }
@@ -453,7 +453,7 @@ button{
 .graph.compact{
   display:grid;
   align-content:start;
-  gap:8px;
+  gap:6px;
 }
 
 .namespace-group{
@@ -473,16 +473,16 @@ button{
 
 .namespace-row{
   width:100%;
-  min-height:44px;
+  min-height:38px;
   display:grid;
-  grid-template-columns:20px 28px minmax(110px,1fr) repeat(3,max-content) max-content;
-  gap:8px;
+  grid-template-columns:18px 24px minmax(100px,1fr) repeat(3,max-content) max-content;
+  gap:6px;
   align-items:center;
   border:0;
   background:#fff;
   color:var(--ink);
   text-align:left;
-  padding:7px 10px;
+  padding:6px 8px;
 }
 
 .namespace-group.has-issue .namespace-row{
@@ -496,8 +496,8 @@ button{
 }
 
 .namespace-icon{
-  width:26px;
-  height:26px;
+  width:22px;
+  height:22px;
   display:grid;
   place-items:center;
   color:#7c94a2;
@@ -511,7 +511,7 @@ button{
 }
 
 .namespace-name{
-  font-size:14px;
+  font-size:13px;
   font-weight:850;
   overflow:hidden;
   text-overflow:ellipsis;
@@ -519,12 +519,12 @@ button{
 }
 
 .namespace-count{
-  min-width:54px;
+  min-width:48px;
   color:#5e7381;
   background:#edf3f6;
   border-radius:999px;
-  padding:3px 7px;
-  font-size:11px;
+  padding:2px 6px;
+  font-size:10px;
   font-weight:850;
   text-align:center;
 }
@@ -532,8 +532,8 @@ button{
 .namespace-children{
   display:grid;
   grid-template-columns:repeat(3,minmax(0,1fr));
-  gap:8px;
-  padding:9px;
+  gap:6px;
+  padding:7px;
   border-top:1px solid var(--line);
   background:#f8fbfc;
 }
@@ -541,29 +541,29 @@ button{
 .resource-section{
   display:grid;
   align-content:start;
-  gap:6px;
+  gap:5px;
   min-width:0;
 }
 
 .resource-section>span{
   color:var(--muted);
-  font-size:11px;
+  font-size:10px;
   font-weight:900;
   text-transform:uppercase;
 }
 
 .resource-node{
   width:100%;
-  min-height:44px;
+  min-height:38px;
   border:1px solid var(--line);
   border-radius:7px;
   background:#fff;
   display:grid;
-  grid-template-columns:27px minmax(0,1fr) 16px;
-  gap:7px;
+  grid-template-columns:23px minmax(0,1fr) 15px;
+  gap:6px;
   align-items:center;
   text-align:left;
-  padding:6px 8px;
+  padding:5px 7px;
   color:var(--ink);
 }
 
@@ -587,22 +587,22 @@ button{
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
-  font-size:12px;
+  font-size:11px;
 }
 
 .resource-node small{
   display:block;
   margin-top:2px;
   color:var(--muted);
-  font-size:11px;
+  font-size:10px;
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
 }
 
 .resource-icon{
-  width:25px;
-  height:25px;
+  width:21px;
+  height:21px;
   display:grid;
   place-items:center;
   color:#8aa1ae;
@@ -617,24 +617,24 @@ button{
 }
 
 .resource-empty{
-  min-height:44px;
+  min-height:38px;
   display:grid;
   place-items:center;
   color:#8295a1;
   border:1px dashed var(--line);
   border-radius:8px;
   background:#fff;
-  font-size:12px;
+  font-size:11px;
 }
 
 .phase{
   display:inline-flex;
   align-items:center;
   width:max-content;
-  min-height:19px;
-  padding:2px 7px;
+  min-height:17px;
+  padding:2px 6px;
   border-radius:999px;
-  font-size:11px;
+  font-size:10px;
   font-weight:850;
   margin-top:3px;
   background:#eef4f7;

@@ -305,7 +305,7 @@ function ChatMessage({message}){
 }
 
 function ResourceGraph({pods,services,deployments,selectedPod,selectedNamespace,onSelectPod,onSelectNamespace}){
-  const [expanded,setExpanded]=useState({});
+  const [openNamespace,setOpenNamespace]=useState(selectedNamespace || "");
 
   const namespaces=useMemo(()=>{
     const names=new Set([
@@ -322,12 +322,12 @@ function ResourceGraph({pods,services,deployments,selectedPod,selectedNamespace,
 
   useEffect(()=>{
     if(selectedNamespace){
-      setExpanded(current=>({...current,[selectedNamespace]:true}));
+      setOpenNamespace(selectedNamespace);
     }
   },[selectedNamespace]);
 
   function toggleNamespace(ns){
-    setExpanded(current=>({...current,[ns]:!current[ns]}));
+    setOpenNamespace(current=>current===ns ? "" : ns);
     if(ns!==selectedNamespace){
       onSelectNamespace(ns);
     }
@@ -345,7 +345,7 @@ function ResourceGraph({pods,services,deployments,selectedPod,selectedNamespace,
       const badPods=nsPods.filter(item=>!isPodHealthy(item));
       const badDeployments=nsDeployments.filter(item=>!isDeploymentHealthy(item));
       const hasIssue=badPods.length>0 || badDeployments.length>0;
-      const isOpen=expanded[ns];
+      const isOpen=openNamespace===ns;
 
       return <div key={ns} className={`namespace-group ${hasIssue ? 'has-issue' : 'healthy'}`}>
         <button className="namespace-row" type="button" onClick={()=>toggleNamespace(ns)}>
