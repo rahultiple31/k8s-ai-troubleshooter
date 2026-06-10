@@ -1042,6 +1042,10 @@ button{
   grid-template-columns:repeat(3,minmax(0,1fr));
 }
 
+.monitor-columns.four{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+}
+
 .metric-card,.metric-list-row{
   min-width:0;
   border:1px solid var(--line);
@@ -1350,7 +1354,7 @@ button{
   .bubble{
     max-width:92%;
   }
-  .monitor-columns.three,.pod-strip{
+  .monitor-columns.three,.monitor-columns.four,.pod-strip{
     grid-template-columns:1fr;
   }
 }

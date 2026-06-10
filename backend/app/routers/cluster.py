@@ -142,6 +142,65 @@ def events(namespace: str | None = None):
         "last_timestamp": str(event_time(event) or event.metadata.creation_timestamp or ""),
     } for event in sorted_events[:100]]
 
+@router.get("/log-alerts")
+def log_alerts(namespace: str | None = None):
+    k8s = get_kubernetes_service()
+    try:
+        pod_list = k8s.list_pods(namespace)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    alert_words = (
+        "error",
+        "exception",
+        "failed",
+        "fatal",
+        "panic",
+        "traceback",
+        "oom",
+        "timeout",
+        "connection refused",
+    )
+    alerts = []
+    for pod in pod_list:
+        statuses = pod.status.container_statuses or []
+        restart_count = sum(status.restart_count for status in statuses)
+        if pod.status.phase in ["Running", "Succeeded"] and restart_count == 0:
+            continue
+
+        container_names = [status.name for status in statuses] or [
+            container.name for container in (pod.spec.containers or [])
+        ]
+        for container_name in container_names[:2]:
+            log_text = k8s.get_pod_logs(
+                pod.metadata.namespace,
+                pod.metadata.name,
+                container=container_name,
+                previous=restart_count > 0,
+                tail_lines=80,
+            )
+            lowered = (log_text or "").lower()
+            matched = next((word for word in alert_words if word in lowered), "")
+            if matched:
+                lines = [line.strip() for line in log_text.splitlines() if line.strip()]
+                snippet = next(
+                    (line for line in reversed(lines) if matched in line.lower()),
+                    lines[-1] if lines else "",
+                )
+                alerts.append({
+                    "namespace": pod.metadata.namespace,
+                    "pod": pod.metadata.name,
+                    "container": container_name,
+                    "reason": matched,
+                    "snippet": snippet[-240:],
+                })
+                break
+
+        if len(alerts) >= 20:
+            break
+
+    return alerts
+
 @router.get("/prometheus/node-memory")
 async def node_memory():
     return await PrometheusService().node_memory()

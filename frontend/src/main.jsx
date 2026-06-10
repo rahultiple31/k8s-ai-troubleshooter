@@ -475,15 +475,21 @@ function EventsPanel({events,lastRefresh}){
 }
 
 function MonitoringPanel({overview,pods,services,events,lastRefresh}){
-  const [metrics,setMetrics]=useState({cluster:null});
+  const [metrics,setMetrics]=useState({cluster:null,logAlerts:[]});
   const [loadingMetrics,setLoadingMetrics]=useState(false);
   const [openSection,setOpenSection]=useState('cluster');
 
   async function loadMetrics(){
     setLoadingMetrics(true);
     try {
-      const cluster=await fetchClusterJson('/cluster/prometheus/cluster-dashboard');
-      setMetrics({cluster});
+      const [clusterResult,logResult]=await Promise.allSettled([
+        fetchClusterJson('/cluster/prometheus/cluster-dashboard'),
+        fetchClusterJson('/cluster/log-alerts'),
+      ]);
+      setMetrics(current=>({
+        cluster:clusterResult.status==='fulfilled' ? clusterResult.value : current.cluster,
+        logAlerts:logResult.status==='fulfilled' ? logResult.value : current.logAlerts,
+      }));
     } catch (err) {
       setMetrics(current=>current);
     }
@@ -495,18 +501,22 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
   },[]);
 
   const cluster=metrics.cluster || {};
+  const logAlerts=metrics.logAlerts || [];
   const unhealthyPods=pods.filter(pod=>pod.phase!=='Running' && pod.phase!=='Succeeded');
   const warningEvents=events.filter(event=>(event.type || '').toLowerCase()==='warning');
-  const restartRows=prometheusRows(cluster.pod_restarts,['namespace','pod']).filter(row=>row.value>0).slice(0,8);
+  const podWarningCounts=countByKey(
+    warningEvents
+      .filter(event=>event.object_kind==='Pod' && event.object_name)
+      .map(event=>`${event.namespace}/${event.object_name}`)
+  );
+  const podWarningTotal=sumValues(podWarningCounts);
+  const podLogCounts=countByKey(logAlerts.map(alert=>`${alert.namespace}/${alert.pod}`));
   const nodeCpuRows=prometheusRows(cluster.node_cpu,['instance']).slice(0,8);
   const nodeMemoryRows=prometheusRows(cluster.node_memory,['instance']).slice(0,8);
   const nodeStorageRows=prometheusRows(cluster.node_storage,['instance']).slice(0,8);
   const podCpuRows=prometheusRows(cluster.pod_cpu,['namespace','pod']).slice(0,8);
   const podMemoryRows=prometheusRows(cluster.pod_memory,['namespace','pod']).slice(0,8);
   const podStorageRows=prometheusRows(cluster.pod_storage,['namespace','pod']).slice(0,8);
-  const clusterCpu=firstPromValue(cluster.cluster_cpu) || averageRows(nodeCpuRows);
-  const clusterMemory=firstPromValue(cluster.cluster_memory) || averageRows(nodeMemoryRows);
-  const clusterStorage=firstPromValue(cluster.cluster_storage) || maxRows(nodeStorageRows);
   const httpErrorRows=combineRows(
     prometheusRows(cluster.http_errors_code,['namespace','service','code']),
     prometheusRows(cluster.http_errors_status,['namespace','service','status']),
@@ -516,16 +526,17 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
     prometheusRows(cluster.https_errors_status,['namespace','service','status']),
   ).slice(0,8);
   const readyNodes=Math.max((overview.nodes || 0) - (overview.not_ready_nodes || []).length,0);
+  const restartTotal=pods.reduce((sum,pod)=>sum + (Number(pod.restarts) || 0),0);
   const isClusterHealthy=!unhealthyPods.length && !warningEvents.length && !(overview.not_ready_nodes || []).length;
-  const podMetricRows=mergeMetricRows(
-    podCpuRows.map(row=>({...row,cpu:`CPU ${formatMetricValue(row.value)}%`,healthy:row.value<85})),
-    podMemoryRows.map(row=>({...row,ram:`RAM ${formatMetricValue(row.value)}%`,healthy:row.value<85})),
-    podStorageRows.map(row=>({...row,storage:`Storage ${formatMetricValue(row.value)}%`,healthy:row.value<85})),
-  );
   const podHealthRows=pods.slice(0,8).map(pod=>({
     label:`${pod.namespace}/${pod.name}`,
-    value:`${pod.phase} / ${pod.restarts} restarts`,
-    healthy:pod.phase==='Running' || pod.phase==='Succeeded',
+    value:[
+      pod.phase,
+      `${pod.restarts} restarts`,
+      `${podWarningCounts.get(`${pod.namespace}/${pod.name}`) || 0} events`,
+      `${podLogCounts.get(`${pod.namespace}/${pod.name}`) || 0} logs`,
+    ].join(' / '),
+    healthy:(pod.phase==='Running' || pod.phase==='Succeeded') && pod.restarts===0 && !(podWarningCounts.get(`${pod.namespace}/${pod.name}`) || 0) && !(podLogCounts.get(`${pod.namespace}/${pod.name}`) || 0),
   }));
   const serviceRows=services.slice(0,8).map(service=>({
     label:`${service.namespace}/${service.name}`,
@@ -561,9 +572,9 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
         healthy={isClusterHealthy}
       >
         <div className="monitor-columns three">
-          <MetricCard title="CPU use%" value={`${formatMetricValue(clusterCpu)}%`} healthy={clusterCpu < 85} />
-          <MetricCard title="RAM use%" value={`${formatMetricValue(clusterMemory)}%`} healthy={clusterMemory < 85} />
-          <MetricCard title="Storage use%" value={`${formatMetricValue(clusterStorage)}%`} healthy={clusterStorage < 85} />
+          <MetricCard title="Nodes" value={`${readyNodes}/${overview.nodes ?? 0}`} healthy={!(overview.not_ready_nodes || []).length} />
+          <MetricCard title="Pods" value={`${pods.length}`} healthy={!unhealthyPods.length} />
+          <MetricCard title="Cluster health" value={isClusterHealthy ? 'Healthy' : 'Issue'} healthy={isClusterHealthy} />
         </div>
       </MonitoringGroup>
 
@@ -587,21 +598,14 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
         icon={<Boxes size={19}/>}
         open={openSection==='pod'}
         onToggle={()=>setOpenSection(openSection==='pod' ? '' : 'pod')}
-        badges={[`${pods.length} pod`, `${unhealthyPods.length} issue`, `${sumRows(restartRows)} restart`]}
-        healthy={!unhealthyPods.length && !sumRows(restartRows)}
+        badges={[`${pods.length} pod`, `${podWarningTotal} event`, `${logAlerts.length} log`]}
+        healthy={!unhealthyPods.length && !restartTotal && !podWarningTotal && !logAlerts.length}
       >
-        <div className="monitor-columns three">
-          <MetricList title="CPU use%, RAM use%, storage use%" rows={podMetricRows.slice(0,8).map(row=>({
-            label:row.label,
-            value:[row.cpu,row.ram,row.storage].filter(Boolean).join(' / ') || 'no metrics',
-            healthy:row.healthy,
-          }))} empty="No pod metrics" />
+        <div className="monitor-columns four">
+          <MetricList title="CPU use%" rows={podCpuRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value<85}))} empty="No pod CPU data" />
+          <MetricList title="RAM use%" rows={podMemoryRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value<85}))} empty="No pod RAM data" />
+          <MetricList title="Storage use%" rows={podStorageRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value<85}))} empty="No pod storage data" />
           <MetricList title="Pod health" rows={podHealthRows} empty="No pod health data" />
-          <MetricList title="Pod warnings" rows={warningEvents.slice(0,8).map(event=>({
-            label:`${event.namespace}/${event.object_name || event.name}`,
-            value:event.reason,
-            healthy:false,
-          }))} empty="No warning events" />
         </div>
       </MonitoringGroup>
 
@@ -679,21 +683,19 @@ function metricLabel(metric,labels){
   return metric.instance || metric.pod || metric.namespace || metric.job || 'cluster';
 }
 
-function firstPromValue(response){
-  return promNumber(response?.data?.result?.[0]?.value?.[1]);
-}
-
 function sumRows(rows){
   return rows.reduce((sum,row)=>sum + (Number(row.value) || 0),0);
 }
 
-function averageRows(rows){
-  if(!rows.length) return 0;
-  return sumRows(rows) / rows.length;
+function countByKey(items){
+  return items.reduce((counts,key)=>{
+    counts.set(key,(counts.get(key) || 0) + 1);
+    return counts;
+  },new Map());
 }
 
-function maxRows(rows){
-  return rows.length ? Math.max(...rows.map(row=>Number(row.value) || 0)) : 0;
+function sumValues(map){
+  return Array.from(map.values()).reduce((sum,value)=>sum + value,0);
 }
 
 function combineRows(...rowGroups){
@@ -705,19 +707,6 @@ function combineRows(...rowGroups){
   return Array.from(totals.entries())
     .map(([label,value])=>({label,value}))
     .sort((a,b)=>b.value-a.value);
-}
-
-function mergeMetricRows(...rowGroups){
-  const merged=new Map();
-  rowGroups.flat().forEach(row=>{
-    const current=merged.get(row.label) || {label:row.label};
-    const next={...current,...row};
-    if(current.healthy === false || row.healthy === false){
-      next.healthy=false;
-    }
-    merged.set(row.label,next);
-  });
-  return Array.from(merged.values());
 }
 
 function formatMetricValue(value){
