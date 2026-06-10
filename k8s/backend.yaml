@@ -14,11 +14,9 @@ spec:
         app: k8s-ai-backend
     spec:
       serviceAccountName: k8s-ai-sa
-      imagePullSecrets:
-      - name: ghcr-secret
       containers:
       - name: backend
-        image: ghcr.io/rahultiple31/k8s-ai-backend:latest
+        image: docker.io/rahultipledocker/k8s-ai-backend:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000

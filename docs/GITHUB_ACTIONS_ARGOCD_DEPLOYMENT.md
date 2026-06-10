@@ -2,7 +2,7 @@
 
 ## Goal
 
-Build and publish the AI Kubernetes Troubleshooter images with GitHub Actions.
+Build and publish the AI Kubernetes Troubleshooter images to Docker Hub with GitHub Actions.
 Deploy the application with ArgoCD by syncing the Helm chart or Kubernetes
 manifests from Git.
 
@@ -10,34 +10,37 @@ manifests from Git.
 
 1. Build backend Docker image.
 2. Build frontend Docker image.
-3. Push both images to GitHub Container Registry.
+3. Push both images to Docker Hub.
 4. Leave application sync to ArgoCD.
 
 ## GitHub Secrets
 
-GitHub Actions uses the built-in `GITHUB_TOKEN` to push images to GHCR. No
-Kubernetes cluster credentials are required in the workflow.
+No Kubernetes cluster credentials are required in the workflow. Add these
+repository secrets so GitHub Actions can push images to Docker Hub:
 
-## Cluster Image Pull Secret
+| Secret | Description |
+|---|---|
+| `DOCKERHUB_USERNAME` | Docker Hub username or organization |
+| `DOCKERHUB_TOKEN` | Docker Hub access token |
 
-If the GHCR packages are private, create a pull secret once in the target
-namespace before ArgoCD syncs the application. The Helm chart and standalone
-manifests reference `ghcr-secret` by default.
+The workflow pushes to the Docker Hub namespace configured as
+`DOCKERHUB_NAMESPACE` in `.github/workflows/build-images.yml`, currently
+`rahultipledocker`, which matches the Helm values.
 
-```bash
-kubectl create namespace k8s-ai --dry-run=client -o yaml | kubectl apply -f -
+## Docker Hub Images
 
-kubectl create secret docker-registry ghcr-secret \
-  -n k8s-ai \
-  --docker-server=ghcr.io \
-  --docker-username='<github-username>' \
-  --docker-password='<github-token-with-read-packages>' \
-  --docker-email='<email>' \
-  --dry-run=client -o yaml | kubectl apply -f -
+The pipeline pushes:
+
+```text
+docker.io/<dockerhub-username>/k8s-ai-backend:<commit-sha>
+docker.io/<dockerhub-username>/k8s-ai-frontend:<commit-sha>
 ```
 
-Private GHCR images still require `ghcr-secret` to exist in the `k8s-ai`
-namespace before ArgoCD-created pods can pull them.
+The Helm chart deploys application workloads into `k8s-ai` by default and uses
+`docker.io/rahultipledocker/...` image repositories. If your Docker Hub username is
+different, update `DOCKERHUB_NAMESPACE` in the workflow and override
+`backend.image.repository` and `frontend.image.repository` in ArgoCD or in a
+values file.
 
 ## Helm Chart Components
 
@@ -78,7 +81,7 @@ Use managed PostgreSQL like AWS RDS for production.
 
 ## Production Recommendations
 
-- Use AWS ECR instead of GHCR if running on EKS.
+- Use AWS ECR instead of Docker Hub if running on EKS.
 - Use ArgoCD cluster credentials instead of CI kubeconfig deployment access.
 - Use External Secrets Operator or Sealed Secrets for secrets.
 - Use Ingress Controller instead of NodePort.

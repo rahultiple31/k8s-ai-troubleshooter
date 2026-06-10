@@ -1,11 +1,10 @@
 namespaceOverride: k8s-ai
 
-imagePullSecrets:
-  - name: ghcr-secret
+imagePullSecrets: []
 
 backend:
   image:
-    repository: ghcr.io/rahultiple31/k8s-ai-backend
+    repository: docker.io/rahultipledocker/k8s-ai-backend
     tag: latest
     pullPolicy: Always
   openai:
@@ -13,7 +12,7 @@ backend:
 
 frontend:
   image:
-    repository: ghcr.io/rahultiple31/k8s-ai-frontend
+    repository: docker.io/rahultipledocker/k8s-ai-frontend
     tag: latest
     pullPolicy: Always
   service:

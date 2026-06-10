@@ -91,25 +91,15 @@ ArgoCD should sync this application from the Helm chart in
 `helm/k8s-ai-troubleshooter` or the manifests in `k8s/`.
 
 GitHub Actions does not connect to the Kubernetes cluster. It only builds and
-pushes images to GHCR. ArgoCD deploys by syncing the Helm chart from Git.
+pushes images to Docker Hub. ArgoCD deploys by syncing the Helm chart from Git.
 
-If GHCR packages are private, create the pull secret once from your cluster
-admin machine before syncing:
+The Helm chart deploys application workloads into the `k8s-ai` namespace by
+default. If your pods appear in the `argocd` namespace, resync the ArgoCD
+application after this change and enable prune, or delete the old deployments
+from `argocd`.
 
-```bash
-kubectl create namespace k8s-ai --dry-run=client -o yaml | kubectl apply -f -
-
-kubectl create secret docker-registry ghcr-secret \
-  -n k8s-ai \
-  --docker-server=ghcr.io \
-  --docker-username='<github-username>' \
-  --docker-password='<github-token-with-read-packages>' \
-  --docker-email='<email>' \
-  --dry-run=client -o yaml | kubectl apply -f -
-```
-
-If the GHCR packages are public, remove or override `imagePullSecrets` in the
-Helm values.
+The chart now uses public Docker Hub images by default, so no image pull secret
+is required unless you make those Docker Hub repositories private.
 
 Access UI:
 
@@ -168,21 +158,31 @@ helm/k8s-ai-troubleshooter/templates/
 
 ### GitHub Secrets
 
-No Kubernetes cluster secret is required in GitHub Actions. The workflow uses
-the built-in `GITHUB_TOKEN` to push images to GHCR.
+No Kubernetes cluster secret is required in GitHub Actions. Add these repository
+secrets so the workflow can push images to Docker Hub:
 
-### GitHub Container Registry
+| Secret Name | Use |
+|---|---|
+| DOCKERHUB_USERNAME | Docker Hub username or organization |
+| DOCKERHUB_TOKEN | Docker Hub access token |
 
-The pipeline pushes images to GitHub Container Registry:
+The workflow pushes to the Docker Hub namespace configured as
+`DOCKERHUB_NAMESPACE` in `.github/workflows/build-images.yml`, currently
+`rahultipledocker`, which matches the Helm values.
+
+### Docker Hub
+
+The pipeline pushes images to Docker Hub:
 
 ```text
-ghcr.io/<github-username>/k8s-ai-backend:<commit-sha>
-ghcr.io/<github-username>/k8s-ai-frontend:<commit-sha>
+docker.io/<dockerhub-username>/k8s-ai-backend:<commit-sha>
+docker.io/<dockerhub-username>/k8s-ai-frontend:<commit-sha>
 ```
 
-If the GHCR packages are private, the cluster must have a `ghcr-secret`
-image pull secret in the application namespace. The Helm chart and standalone
-manifests reference it by default.
+The Helm chart currently defaults to `docker.io/rahultipledocker/...`. If your
+Docker Hub namespace is different, update `DOCKERHUB_NAMESPACE` in the workflow
+and override `backend.image.repository` and `frontend.image.repository` in
+ArgoCD or in a values file.
 
 ### Pipeline Flow
 
@@ -195,7 +195,7 @@ Build Backend Docker Image
         |
 Build Frontend Docker Image
         |
-Push Images to GHCR
+Push Images to Docker Hub
 ```
 
 ### Check Deployment
