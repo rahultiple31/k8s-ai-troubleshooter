@@ -102,8 +102,7 @@ function App(){
     [pods,namespace,podName]
   );
 
-  const healthyPods=pods.filter(p=>p.phase==='Running' || p.phase==='Succeeded').length;
-  const unhealthyPods=pods.length - healthyPods;
+  const unhealthyPods=pods.filter(p=>p.phase!=='Running' && p.phase!=='Succeeded').length;
   const syncOk=unhealthyPods===0 && (overview.not_ready_nodes || []).length===0;
 
   function selectPod(p){
@@ -181,11 +180,12 @@ function App(){
         </label>
       </div>
 
-      <div className="status-list">
-        <StatusRow icon={<CheckCircle2 size={17}/>} label="Synced" value={syncOk ? 1 : 0} tone="good" />
-        <StatusRow icon={<AlertTriangle size={17}/>} label="OutOfSync" value={syncOk ? 0 : 1} tone="warn" />
-        <StatusRow icon={<ShieldCheck size={17}/>} label="Healthy" value={healthyPods} tone="good" />
-        <StatusRow icon={<AlertTriangle size={17}/>} label="Degraded" value={unhealthyPods} tone="bad" />
+      <div className="sidebar-summary">
+        <span>Cluster summary</span>
+        <HealthTile label="App Health" value={syncOk ? 'Healthy' : 'Needs attention'} icon={<ShieldCheck/>} tone={syncOk ? 'good' : 'warn'} />
+        <HealthTile label="Sync Status" value={syncOk ? 'Synced' : 'Drift detected'} icon={<GitBranch/>} tone={syncOk ? 'good' : 'warn'} />
+        <HealthTile label="Nodes" value={overview.nodes ?? '-'} icon={<Server/>} />
+        <HealthTile label="Pods" value={overview.pods ?? pods.length ?? '-'} icon={<Boxes/>} />
       </div>
     </aside>
 
@@ -200,13 +200,6 @@ function App(){
           Refresh
         </button>
       </header>
-
-      <section className="summary-band">
-        <HealthTile label="App Health" value={syncOk ? 'Healthy' : 'Needs attention'} icon={<ShieldCheck/>} tone={syncOk ? 'good' : 'warn'} />
-        <HealthTile label="Sync Status" value={syncOk ? 'Synced' : 'Drift detected'} icon={<GitBranch/>} tone={syncOk ? 'good' : 'warn'} />
-        <HealthTile label="Nodes" value={overview.nodes ?? '-'} icon={<Server/>} />
-        <HealthTile label="Pods" value={overview.pods ?? pods.length ?? '-'} icon={<Boxes/>} />
-      </section>
 
       <section className="content-grid">
         <section className="chat-panel">
@@ -272,13 +265,6 @@ function filterResources(items,search,fields){
   return items.filter(item=>
     fields.some(field=>String(item[field] || '').toLowerCase().includes(needle))
   );
-}
-
-function StatusRow({icon,label,value,tone}){
-  return <div className={`status-row ${tone || ''}`}>
-    <span>{icon}{label}</span>
-    <strong>{value}</strong>
-  </div>;
 }
 
 function HealthTile({label,value,icon,tone}){

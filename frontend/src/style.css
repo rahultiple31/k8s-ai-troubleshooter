@@ -35,6 +35,7 @@ button{
   display:grid;
   grid-template-columns:252px minmax(0,1fr);
   min-height:100vh;
+  height:100vh;
 }
 
 .sidebar{
@@ -43,8 +44,9 @@ button{
   padding:24px 20px;
   display:flex;
   flex-direction:column;
-  gap:24px;
+  gap:22px;
   border-right:1px solid rgba(255,255,255,.08);
+  overflow-y:auto;
 }
 
 .brand{
@@ -133,35 +135,13 @@ button{
   background:transparent;
 }
 
-.status-list{
-  display:grid;
-  gap:12px;
-  margin-top:auto;
-}
-
-.status-row{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  color:#a7bfca;
-  font-weight:700;
-}
-
-.status-row span{
-  display:flex;
-  align-items:center;
-  gap:9px;
-}
-
-.status-row.good svg{color:var(--teal)}
-.status-row.warn svg{color:var(--amber)}
-.status-row.bad svg{color:var(--red)}
-
 .workspace{
   min-width:0;
+  min-height:0;
   display:flex;
   flex-direction:column;
   background:#eef4f7;
+  overflow:hidden;
 }
 
 .topbar{
@@ -200,48 +180,58 @@ button{
   font-weight:800;
 }
 
-.summary-band{
+.sidebar-summary{
   display:grid;
-  grid-template-columns:repeat(4,minmax(150px,1fr));
-  gap:1px;
-  background:var(--line);
-  border-bottom:1px solid var(--line);
+  gap:9px;
+  margin-top:auto;
+  padding-top:16px;
+  border-top:1px solid rgba(255,255,255,.12);
+}
+
+.sidebar-summary>span{
+  color:#9bb6c2;
+  font-size:12px;
+  text-transform:uppercase;
+  font-weight:900;
 }
 
 .health-tile{
-  background:var(--panel);
-  padding:16px 20px;
+  background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:8px;
+  padding:9px 10px;
   display:flex;
-  gap:12px;
+  gap:10px;
   align-items:center;
   min-width:0;
+  color:#fff;
 }
 
 .tile-icon{
-  width:40px;
-  height:40px;
+  width:30px;
+  height:30px;
   display:grid;
   place-items:center;
-  border-radius:9px;
-  background:#eaf1f5;
-  color:#78919f;
+  border-radius:7px;
+  background:rgba(255,255,255,.1);
+  color:#9bb6c2;
 }
 
-.health-tile.good .tile-icon{background:#e8fbf5;color:var(--teal)}
-.health-tile.warn .tile-icon{background:#fff6df;color:var(--amber)}
+.health-tile.good .tile-icon{background:rgba(0,184,148,.16);color:#64e2c2}
+.health-tile.warn .tile-icon{background:rgba(246,180,69,.16);color:#f8c96b}
 
 .health-tile span{
   display:block;
-  color:var(--muted);
-  font-size:12px;
+  color:#9bb6c2;
+  font-size:10px;
   text-transform:uppercase;
   font-weight:900;
 }
 
 .health-tile strong{
   display:block;
-  margin-top:3px;
-  font-size:22px;
+  margin-top:1px;
+  font-size:15px;
   overflow-wrap:anywhere;
 }
 
@@ -684,7 +674,7 @@ button{
   .shell{
     grid-template-columns:88px minmax(0,1fr);
   }
-  .brand div:not(.brand-mark),.nav a:not(.active),.nav a span,.filter-block,.status-list{
+  .brand div:not(.brand-mark),.nav a:not(.active),.nav a span,.filter-block,.sidebar-summary{
     display:none;
   }
   .nav a{
@@ -705,9 +695,6 @@ button{
   .topbar,.panel-heading{
     align-items:flex-start;
     flex-direction:column;
-  }
-  .summary-band{
-    grid-template-columns:1fr 1fr;
   }
   .content-grid{
     padding:12px;
