@@ -5,7 +5,7 @@ imagePullSecrets: []
 backend:
   image:
     repository: docker.io/rahultipledocker/k8s-ai-backend
-    tag: 0581267022061b4ee3668ee78bd615c185e03590
+    tag: 8bd60fc34cf2cc7eab4004d16be20a90c26ba2c3
     pullPolicy: Always
   openai:
     existingSecret: k8s-ai-secret
@@ -13,7 +13,7 @@ backend:
 frontend:
   image:
     repository: docker.io/rahultipledocker/k8s-ai-frontend
-    tag: 0581267022061b4ee3668ee78bd615c185e03590
+    tag: 8bd60fc34cf2cc7eab4004d16be20a90c26ba2c3
     pullPolicy: Always
   service:
     type: NodePort
