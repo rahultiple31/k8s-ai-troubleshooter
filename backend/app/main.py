@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import health, cluster, ai
+from app.routers import health, cluster, ai, kubectl
 
 app = FastAPI(title="Kubernetes AI Troubleshooter", version="1.0.0")
 
@@ -15,3 +15,4 @@ app.add_middleware(
 app.include_router(health.router, prefix="/api")
 app.include_router(cluster.router, prefix="/api/cluster", tags=["cluster"])
 app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
+app.include_router(kubectl.router, prefix="/api/kubectl", tags=["kubectl"])

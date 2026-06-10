@@ -9,11 +9,17 @@ router = APIRouter()
 @router.post("/troubleshoot")
 def troubleshoot(req: TroubleshootRequest):
     if not req.namespace or not req.pod_name:
+        namespace = req.namespace or "default"
         return {
-            "reason": "Please provide namespace and pod_name for deep pod troubleshooting.",
-            "fix": "Select a pod from UI or call API with namespace and pod_name.",
-            "commands": ["kubectl get pods -A"],
-            "confidence": 50,
+            "reason": "Select a Kubernetes pod to get an exact fix for the issue.",
+            "fix": "Use the commands below to find the failing pod, then select it from Resource Tree or enter its namespace and pod name in the chat box.",
+            "commands": [
+                f"kubectl get pods -n {namespace} -o wide",
+                f"kubectl get events -n {namespace} --sort-by=.lastTimestamp",
+                f"kubectl get pvc -n {namespace}",
+                "kubectl get nodes -o wide",
+            ],
+            "confidence": 70,
         }
 
     try:

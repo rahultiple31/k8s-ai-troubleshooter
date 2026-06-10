@@ -29,6 +29,10 @@ spec:
               name: k8s-ai-secret
               key: OPENAI_API_KEY
               optional: true
+        - name: KUBECTL_TERMINAL_ALLOW_MUTATIONS
+          value: "true"
+        - name: KUBECTL_TERMINAL_TIMEOUT_SECONDS
+          value: "30"
         resources:
           requests:
             cpu: 100m

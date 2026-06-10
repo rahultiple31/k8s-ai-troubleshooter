@@ -7,6 +7,10 @@ class TroubleshootRequest(BaseModel):
     pod_name: Optional[str] = None
     deployment_name: Optional[str] = None
 
+class KubectlRequest(BaseModel):
+    command: str
+    stdin: Optional[str] = None
+
 class Recommendation(BaseModel):
     reason: str
     fix: str

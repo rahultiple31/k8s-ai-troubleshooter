@@ -274,7 +274,7 @@ button{
   grid-template-columns:1fr;
 }
 
-.chat-panel,.ops-panel,.events-panel{
+.chat-panel,.ops-panel,.events-panel,.terminal-panel{
   min-width:0;
   min-height:620px;
   background:var(--panel);
@@ -893,6 +893,155 @@ button{
   font-size:11px;
 }
 
+.terminal-panel{
+  overflow:hidden;
+}
+
+.terminal-body{
+  flex:1;
+  min-height:0;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 360px;
+  background:#081821;
+}
+
+.terminal-output{
+  min-width:0;
+  overflow:auto;
+  padding:14px;
+  display:grid;
+  align-content:start;
+  gap:12px;
+  color:#d7f7ee;
+  font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;
+  font-size:12px;
+}
+
+.terminal-entry{
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:8px;
+  background:rgba(255,255,255,.035);
+  padding:10px;
+}
+
+.terminal-entry.failed{
+  border-color:rgba(238,91,91,.38);
+}
+
+.terminal-command{
+  color:#76e7cd;
+  margin-bottom:7px;
+  overflow-wrap:anywhere;
+}
+
+.terminal-entry pre{
+  margin:0;
+  color:#e9fffb;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+}
+
+.terminal-entry .stderr{
+  color:#ffb0a8;
+}
+
+.terminal-entry small{
+  display:block;
+  margin-top:7px;
+  color:#86a7b2;
+}
+
+.terminal-controls{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  padding:12px;
+  border-left:1px solid rgba(255,255,255,.08);
+  background:#102734;
+}
+
+.quick-command-grid{
+  display:grid;
+  gap:7px;
+}
+
+.quick-command-grid button{
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:7px;
+  background:#0b1e29;
+  color:#d7f7ee;
+  text-align:left;
+  padding:8px 9px;
+  font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;
+  font-size:11px;
+  overflow-wrap:anywhere;
+}
+
+.quick-command-grid button:hover{
+  border-color:rgba(118,231,205,.42);
+  background:#0e2938;
+}
+
+.manifest-box{
+  display:grid;
+  gap:6px;
+  color:#9fc0ca;
+  font-size:11px;
+  font-weight:850;
+  text-transform:uppercase;
+}
+
+.manifest-box textarea,.terminal-input-row textarea{
+  width:100%;
+  min-width:0;
+  border:1px solid rgba(255,255,255,.1);
+  outline:0;
+  border-radius:8px;
+  color:#e9fffb;
+  background:#07151d;
+  font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;
+  font-size:12px;
+  line-height:1.45;
+}
+
+.manifest-box textarea{
+  min-height:180px;
+  resize:vertical;
+  padding:10px;
+}
+
+.terminal-input-row{
+  display:grid;
+  grid-template-columns:1fr 44px;
+  gap:8px;
+  align-items:end;
+  margin-top:auto;
+}
+
+.terminal-input-row textarea{
+  min-height:44px;
+  max-height:120px;
+  resize:vertical;
+  padding:10px;
+}
+
+.terminal-input-row button{
+  width:44px;
+  height:44px;
+  border:0;
+  border-radius:10px;
+  color:#07151d;
+  background:#76e7cd;
+  display:grid;
+  place-items:center;
+}
+
+.terminal-input-row button:disabled{
+  opacity:.55;
+  cursor:wait;
+}
+
 .spin{
   animation:spin 1s linear infinite;
 }
@@ -930,7 +1079,7 @@ button{
   .content-grid{
     padding:12px;
   }
-  .chat-panel,.ops-panel,.events-panel{
+  .chat-panel,.ops-panel,.events-panel,.terminal-panel{
     min-height:560px;
   }
   .target-row,.prompt-row{
@@ -951,5 +1100,12 @@ button{
   }
   .bubble{
     max-width:92%;
+  }
+  .terminal-body{
+    grid-template-columns:1fr;
+  }
+  .terminal-controls{
+    border-left:0;
+    border-top:1px solid rgba(255,255,255,.08);
   }
 }

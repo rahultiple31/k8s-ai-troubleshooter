@@ -16,6 +16,8 @@ backend:
     LOKI_URL: "http://loki-gateway.monitoring.svc.cluster.local"
     REDIS_URL: "redis://k8s-ai-redis:6379/0"
     DATABASE_URL: "postgresql://k8s_ai:k8s_ai_password@k8s-ai-postgres:5432/k8s_ai"
+    KUBECTL_TERMINAL_ALLOW_MUTATIONS: "true"
+    KUBECTL_TERMINAL_TIMEOUT_SECONDS: "30"
   openai:
     existingSecret: ""
     secretName: k8s-ai-secret

@@ -42,7 +42,7 @@ function App(){
   const [services,setServices]=useState([]);
   const [deployments,setDeployments]=useState([]);
   const [events,setEvents]=useState([]);
-  const [question,setQuestion]=useState('Why is this pod unhealthy?');
+  const [question,setQuestion]=useState('Fix this Kubernetes pod issue and provide copy-paste kubectl commands.');
   const [namespace,setNamespace]=useState('default');
   const [podName,setPodName]=useState('');
   const [search,setSearch]=useState('');
@@ -55,8 +55,8 @@ function App(){
     {
       role:'assistant',
       content:{
-        reason:'Ask a Kubernetes troubleshooting question.',
-        fix:'I will inspect live pod status, events, logs, nodes, PVCs, and then ground the answer with Kubernetes docs.',
+        reason:'Ask me to fix a Kubernetes issue.',
+        fix:'I will inspect live pod status, events, logs, nodes, PVCs, and return the exact fix with copy-paste kubectl commands.',
         commands:['kubectl get pods -A','kubectl get events -A --sort-by=.lastTimestamp'],
         confidence:100,
       },
@@ -147,14 +147,14 @@ function App(){
     selectedRef.current={namespace:p.namespace,podName:p.name};
     setNamespace(p.namespace);
     setPodName(p.name);
-    setQuestion(`Why is pod ${p.name} in ${p.phase} state?`);
+    setQuestion(`Fix the Kubernetes issue for pod ${p.name} in namespace ${p.namespace}. Current phase is ${p.phase}. Give root cause, exact fix, and copy-paste kubectl commands.`);
   }
 
   function selectNamespace(nextNamespace){
     selectedRef.current={namespace:nextNamespace,podName:''};
     setNamespace(nextNamespace);
     setPodName('');
-    setQuestion(`Which resources have issues in namespace ${nextNamespace}?`);
+    setQuestion(`Find and fix Kubernetes issues in namespace ${nextNamespace}. Give exact kubectl commands I can copy and paste.`);
   }
 
   function updateNamespace(value){
@@ -210,6 +210,7 @@ function App(){
         <NavButton active={activeView==='ai'} icon={<MessageSquareText size={18}/>} label="AI Troubleshoot" onClick={()=>setActiveView('ai')} />
         <NavButton active={activeView==='resources'} icon={<Network size={18}/>} label="Resource Tree" onClick={()=>setActiveView('resources')} />
         <NavButton active={activeView==='events'} icon={<History size={18}/>} label="Events" onClick={()=>setActiveView('events')} />
+        <NavButton active={activeView==='terminal'} icon={<Terminal size={18}/>} label="Kubectl Terminal" onClick={()=>setActiveView('terminal')} />
       </nav>
 
       <div className="filter-block">
@@ -267,6 +268,8 @@ function App(){
         />}
 
         {activeView==='events' && <EventsPanel events={filteredEvents} lastRefresh={lastRefresh} />}
+
+        {activeView==='terminal' && <TerminalPanel namespace={namespace} podName={podName} />}
       </section>
     </main>
   </div>;
@@ -276,6 +279,7 @@ function viewTitle(activeView){
   if(activeView==='ai') return 'AI Troubleshoot';
   if(activeView==='resources') return 'Resource Tree';
   if(activeView==='events') return 'Events';
+  if(activeView==='terminal') return 'Kubectl Terminal';
   return 'Kubernetes AI Troubleshooter';
 }
 
@@ -294,6 +298,13 @@ function filterResources(items,search,fields){
   );
 }
 
+function buildFixPrompt(issue, namespace, podName){
+  const target = podName
+    ? `pod ${podName} in namespace ${namespace || 'default'}`
+    : `namespace ${namespace || 'default'}`;
+  return `${issue} for ${target}. Give the root cause, exact fix steps, and copy-paste kubectl commands with the real namespace and pod name.`;
+}
+
 function HealthTile({label,value,icon,tone}){
   return <div className={`health-tile ${tone || ''}`}>
     <div className="tile-icon">{icon}</div>
@@ -309,10 +320,13 @@ function ChatPanel({messages,loading,namespace,podName,question,setQuestion,upda
   const hasUserMessage=messages.some(message=>message.role==='user');
   const visibleMessages=hasUserMessage ? messages.filter(message=>message.role==='user' || message.content?.ai_explanation || message.content?.error) : [];
   const promptIdeas=[
-    'Why is this pod not ready?',
-    'Check image pull and registry secret issues',
-    'Find PVC or storage problems',
-    'Explain recent warning events',
+    'Fix CrashLoopBackOff for this pod',
+    'Fix ImagePullBackOff or registry secret issue',
+    'Fix Pending pod caused by PVC or storage',
+    'Fix failed readiness or liveness probe',
+    'Fix OOMKilled or memory limit issue',
+    'Fix service or endpoint connectivity',
+    'Check healthy status and give verify commands',
   ];
 
   useEffect(()=>{
@@ -329,8 +343,8 @@ function ChatPanel({messages,loading,namespace,podName,question,setQuestion,upda
   return <section className="chat-panel">
     <div className="panel-heading">
       <div>
-        <span className="eyebrow">AI diagnosis</span>
-        <h3>Kubernetes support chat</h3>
+        <span className="eyebrow">Kubernetes fix assistant</span>
+        <h3>Fix cluster issue</h3>
       </div>
       <span className="selected-pill">{namespace || '-'} / {podName || 'select pod'}</span>
     </div>
@@ -338,11 +352,11 @@ function ChatPanel({messages,loading,namespace,podName,question,setQuestion,upda
     <div className="messages">
       {!hasUserMessage && <div className="chat-welcome">
         <div className="welcome-mark"><Sparkles size={24}/></div>
-        <h3>What Kubernetes issue should I troubleshoot?</h3>
-        <p>Select a pod from the resource tree or type a namespace and pod name. I will use live cluster data, pod events, logs, PVCs, and Kubernetes docs to shape the answer.</p>
+        <h3>Which Kubernetes issue should I fix?</h3>
+        <p>Select a pod or type the namespace and pod name. I will return the root cause, exact fix steps, and copy-paste kubectl commands for that Kubernetes problem.</p>
         <div className="prompt-suggestions">
           {promptIdeas.map(prompt=>
-            <button key={prompt} type="button" onClick={()=>setQuestion(prompt)}>{prompt}</button>
+            <button key={prompt} type="button" onClick={()=>setQuestion(buildFixPrompt(prompt, namespace, podName))}>{prompt}</button>
           )}
         </div>
       </div>}
@@ -367,7 +381,7 @@ function ChatPanel({messages,loading,namespace,podName,question,setQuestion,upda
           value={question}
           onChange={e=>setQuestion(e.target.value)}
           onKeyDown={handlePromptKeyDown}
-          placeholder="Ask about pod logs, events, PVC, image pull, CrashLoopBackOff..."
+          placeholder="Ask me to fix a Kubernetes issue: CrashLoopBackOff, ImagePullBackOff, Pending PVC, probes, service endpoints, OOMKilled..."
         />
         <button onClick={askAI} disabled={loading || !question.trim()} title="Analyze issue">
           {loading ? <Loader2 className="spin" size={19}/> : <Send size={19}/>}
@@ -411,6 +425,125 @@ function EventsPanel({events,lastRefresh}){
     <div className="event-list">
       {events.map(event=><EventItem key={`${event.namespace}-${event.name}`} event={event} />)}
       {!events.length && <div className="empty">No events found</div>}
+    </div>
+  </section>;
+}
+
+function TerminalPanel({namespace,podName}){
+  const [command,setCommand]=useState(`kubectl get pods -n ${namespace || 'default'}`);
+  const [stdin,setStdin]=useState('');
+  const [running,setRunning]=useState(false);
+  const [history,setHistory]=useState([
+    {
+      command:'kubectl terminal ready',
+      exit_code:0,
+      stdout:'Run kubectl get/describe/logs/apply/rollout/scale commands from inside the cluster service account.',
+      stderr:'',
+    },
+  ]);
+  const outputRef=useRef(null);
+  const quickCommands=[
+    `kubectl get pods -n ${namespace || 'default'} -o wide`,
+    podName ? `kubectl describe pod ${podName} -n ${namespace || 'default'}` : `kubectl get events -n ${namespace || 'default'} --sort-by=.lastTimestamp`,
+    podName ? `kubectl logs ${podName} -n ${namespace || 'default'} --tail=200` : 'kubectl get nodes -o wide',
+    `kubectl get events -n ${namespace || 'default'} --sort-by=.lastTimestamp`,
+    'kubectl get deployments -A',
+    'kubectl apply -f -',
+  ];
+
+  useEffect(()=>{
+    outputRef.current?.scrollIntoView({behavior:'smooth', block:'end'});
+  },[history,running]);
+
+  async function runCommand(){
+    const trimmed=command.trim();
+    if(!trimmed) return;
+    setRunning(true);
+    setHistory(current=>[
+      ...current,
+      {command:trimmed, exit_code:null, stdout:'Running...', stderr:''},
+    ]);
+    try {
+      const response=await fetch(`${API}/kubectl/run`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          command:trimmed,
+          stdin:trimmed === 'kubectl apply -f -' ? stdin : '',
+        }),
+      });
+      const data=await response.json();
+      setHistory(current=>[
+        ...current.slice(0,-1),
+        response.ok ? data : {command:trimmed, exit_code:1, stdout:'', stderr:data.detail || 'kubectl command failed'},
+      ]);
+    } catch (err) {
+      setHistory(current=>[
+        ...current.slice(0,-1),
+        {command:trimmed, exit_code:1, stdout:'', stderr:`Unable to reach backend: ${err.message}`},
+      ]);
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  function handleKeyDown(event){
+    if(event.key==='Enter' && !event.shiftKey){
+      event.preventDefault();
+      runCommand();
+    }
+  }
+
+  return <section className="terminal-panel">
+    <div className="panel-heading">
+      <div>
+        <span className="eyebrow">Cluster terminal</span>
+        <h3>Kubectl console</h3>
+      </div>
+      <span className="selected-pill">{namespace || 'default'} / {podName || 'no pod selected'}</span>
+    </div>
+
+    <div className="terminal-body">
+      <div className="terminal-output">
+        {history.map((item,index)=>
+          <div key={`${item.command}-${index}`} className={`terminal-entry ${item.exit_code ? 'failed' : 'ok'}`}>
+            <div className="terminal-command">$ {item.command}</div>
+            {item.stdout && <pre>{item.stdout}</pre>}
+            {item.stderr && <pre className="stderr">{item.stderr}</pre>}
+            {item.exit_code !== null && <small>exit code {item.exit_code}</small>}
+          </div>
+        )}
+        <div ref={outputRef} />
+      </div>
+
+      <div className="terminal-controls">
+        <div className="quick-command-grid">
+          {quickCommands.map(item=>
+            <button key={item} type="button" onClick={()=>setCommand(item)}>{item}</button>
+          )}
+        </div>
+
+        <label className="manifest-box">
+          <span>Manifest input for kubectl apply -f -</span>
+          <textarea
+            value={stdin}
+            onChange={event=>setStdin(event.target.value)}
+            placeholder={'apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: example\n  namespace: ' + (namespace || 'default')}
+          />
+        </label>
+
+        <div className="terminal-input-row">
+          <textarea
+            value={command}
+            onChange={event=>setCommand(event.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="kubectl get pods -A"
+          />
+          <button onClick={runCommand} disabled={running || !command.trim()} title="Run kubectl command">
+            {running ? <Loader2 className="spin" size={19}/> : <Send size={19}/>}
+          </button>
+        </div>
+      </div>
     </div>
   </section>;
 }
