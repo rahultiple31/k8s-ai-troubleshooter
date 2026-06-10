@@ -76,6 +76,7 @@ jobs:
     env:
       NAMESPACE: k8s-ai
       GHCR_PULL_SECRET_NAME: ghcr-secret
+      KUBECONFIG_RAW: ${{ secrets.KUBECONFIG }}
       KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
       GHCR_PULL_USERNAME: ${{ secrets.GHCR_PULL_USERNAME }}
       GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
@@ -86,11 +87,14 @@ jobs:
         id: cluster_config
         run: |
           missing=()
-          for name in KUBECONFIG_B64 GHCR_PULL_USERNAME GHCR_PULL_TOKEN GHCR_PULL_EMAIL; do
+          for name in GHCR_PULL_USERNAME GHCR_PULL_TOKEN GHCR_PULL_EMAIL; do
             if [ -z "${!name}" ]; then
               missing+=("${name}")
             fi
           done
+          if [ -z "${KUBECONFIG_RAW}" ] && [ -z "${KUBECONFIG_B64}" ]; then
+            missing+=("KUBECONFIG or KUBECONFIG_B64")
+          fi
           if [ "${#missing[@]}" -gt 0 ]; then
             echo "configured=false" >> "${GITHUB_OUTPUT}"
             echo "::notice::Skipping cluster secret configuration. Missing GitHub secrets: ${missing[*]}"
@@ -103,36 +107,41 @@ jobs:
         uses: azure/setup-kubectl@v4
 
       - name: Configure kubeconfig
+        id: kubeconfig
         if: ${{ steps.cluster_config.outputs.configured == 'true' }}
         run: |
           mkdir -p "${HOME}/.kube"
-          raw_kubeconfig="$(printf '%s' "${KUBECONFIG_B64}" | sed 's/\r$//')"
-          if printf '%s' "${raw_kubeconfig}" | grep -q 'apiVersion:'; then
+          raw_kubeconfig="$(printf '%s' "${KUBECONFIG_RAW}" | sed 's/\r$//')"
+          if [ -n "${raw_kubeconfig}" ] && printf '%s' "${raw_kubeconfig}" | grep -q 'apiVersion:'; then
             printf '%s\n' "${raw_kubeconfig}" > "${HOME}/.kube/config"
           else
             clean_kubeconfig_b64="$(printf '%s' "${KUBECONFIG_B64}" | tr -d '[:space:]' | sed "s/^[\"']//; s/[\"']$//")"
             if ! printf '%s' "${clean_kubeconfig_b64}" | base64 --decode > "${HOME}/.kube/config"; then
-              echo "::error::KUBECONFIG_B64 must contain either raw kubeconfig YAML or valid base64-encoded kubeconfig content."
-              exit 1
+              echo "valid=false" >> "${GITHUB_OUTPUT}"
+              echo "::notice::Skipping cluster secret configuration. KUBECONFIG is empty and KUBECONFIG_B64 is not valid base64."
+              exit 0
             fi
           fi
           if ! grep -q 'apiVersion:' "${HOME}/.kube/config"; then
-            echo "::error::KUBECONFIG_B64 decoded successfully, but the result does not look like a kubeconfig file."
-            exit 1
+            echo "valid=false" >> "${GITHUB_OUTPUT}"
+            echo "::notice::Skipping cluster secret configuration. Kubeconfig does not contain apiVersion."
+            exit 0
           fi
           if ! grep -q 'clusters:' "${HOME}/.kube/config"; then
-            echo "::error::KUBECONFIG_B64 does not contain a kubeconfig clusters section."
-            exit 1
+            echo "valid=false" >> "${GITHUB_OUTPUT}"
+            echo "::notice::Skipping cluster secret configuration. Kubeconfig does not contain a clusters section."
+            exit 0
           fi
           chmod 600 "${HOME}/.kube/config"
+          echo "valid=true" >> "${GITHUB_OUTPUT}"
 
       - name: Ensure application namespace exists
-        if: ${{ steps.cluster_config.outputs.configured == 'true' }}
+        if: ${{ steps.cluster_config.outputs.configured == 'true' && steps.kubeconfig.outputs.valid == 'true' }}
         run: |
           kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Create or update GHCR image pull secret
-        if: ${{ steps.cluster_config.outputs.configured == 'true' }}
+        if: ${{ steps.cluster_config.outputs.configured == 'true' && steps.kubeconfig.outputs.valid == 'true' }}
         run: |
           kubectl create secret docker-registry "${GHCR_PULL_SECRET_NAME}" \
             -n "${NAMESPACE}" \
@@ -143,7 +152,7 @@ jobs:
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Create or update OpenAI secret
-        if: ${{ steps.cluster_config.outputs.configured == 'true' && env.OPENAI_API_KEY != '' }}
+        if: ${{ steps.cluster_config.outputs.configured == 'true' && steps.kubeconfig.outputs.valid == 'true' && env.OPENAI_API_KEY != '' }}
         run: |
           kubectl create secret generic k8s-ai-secret \
             -n "${NAMESPACE}" \

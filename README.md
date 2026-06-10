@@ -96,13 +96,27 @@ that step:
 
 | Secret Name | Use |
 |---|---|
-| KUBECONFIG_B64 | Base64-encoded kubeconfig or raw kubeconfig YAML for the target cluster |
+| KUBECONFIG | Raw kubeconfig YAML for the target cluster |
+| KUBECONFIG_B64 | Optional fallback: base64-encoded kubeconfig |
 | GHCR_PULL_USERNAME | GitHub username used by Kubernetes to pull private GHCR images |
 | GHCR_PULL_TOKEN | GitHub token with package read access |
 | GHCR_PULL_EMAIL | Email value for the Docker registry secret |
 | OPENAI_API_KEY | Optional API key stored as the `k8s-ai-secret` Kubernetes secret |
 
-Create `KUBECONFIG_B64` from your kubeconfig:
+Recommended: create `KUBECONFIG` by copying the raw contents of your kubeconfig
+file into the GitHub secret:
+
+```bash
+cat ~/.kube/config
+```
+
+On PowerShell:
+
+```powershell
+Get-Content "$env:USERPROFILE\.kube\config" -Raw | Set-Clipboard
+```
+
+Optional fallback: create `KUBECONFIG_B64` from your kubeconfig:
 
 ```bash
 base64 -w 0 ~/.kube/config
@@ -121,8 +135,7 @@ On PowerShell, you can copy it directly to the clipboard:
 ```
 
 Paste only the base64 text into the GitHub secret. Do not include quotes,
-backticks, or command output labels. The workflow also accepts raw kubeconfig
-YAML in `KUBECONFIG_B64`, but base64 is safer for copy/paste.
+backticks, or command output labels.
 
 The workflow creates or updates this cluster secret automatically:
 
@@ -136,10 +149,10 @@ kubectl create secret docker-registry ghcr-secret \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-If any of `KUBECONFIG_B64`, `GHCR_PULL_USERNAME`, `GHCR_PULL_TOKEN`, or
-`GHCR_PULL_EMAIL` is missing, the workflow skips cluster secret setup and only
-builds/pushes images. Private GHCR images still require `ghcr-secret` to exist
-in the `k8s-ai` namespace before pods can pull them.
+If `KUBECONFIG`/`KUBECONFIG_B64` or any GHCR pull secret is missing or invalid,
+the workflow skips cluster secret setup and only builds/pushes images. Private
+GHCR images still require `ghcr-secret` to exist in the `k8s-ai` namespace
+before pods can pull them.
 
 Access UI:
 
@@ -204,14 +217,15 @@ ArgoCD-managed deployments:
 
 | Secret Name | Use |
 |---|---|
-| KUBECONFIG_B64 | Base64-encoded kubeconfig or raw kubeconfig YAML for the target cluster |
+| KUBECONFIG | Raw kubeconfig YAML for the target cluster |
+| KUBECONFIG_B64 | Optional fallback: base64-encoded kubeconfig |
 | GHCR_PULL_USERNAME | GitHub username used by Kubernetes image pulls |
 | GHCR_PULL_TOKEN | GitHub token with package read access |
 | GHCR_PULL_EMAIL | Email value for the Docker registry secret |
 | OPENAI_API_KEY | Optional API key synced to the `k8s-ai-secret` Kubernetes secret |
 
 The cluster secret configuration job is skipped when the required Kubernetes
-and GHCR pull secrets are not set, so image builds can still pass.
+and GHCR pull secrets are missing or invalid, so image builds can still pass.
 
 ### GitHub Container Registry
 
