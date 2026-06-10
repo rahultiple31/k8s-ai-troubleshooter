@@ -243,7 +243,7 @@ function App(){
         </button>
       </header>
 
-      <section className={`content-grid ${activeView!=='dashboard' ? 'single' : ''}`}>
+      <section className={`content-grid ${activeView==='terminal' ? 'terminal-split' : activeView!=='dashboard' ? 'single' : ''}`}>
         {(activeView==='dashboard' || activeView==='ai') && <ChatPanel
           messages={messages}
           loading={loading}
@@ -269,7 +269,24 @@ function App(){
 
         {activeView==='events' && <EventsPanel events={filteredEvents} lastRefresh={lastRefresh} />}
 
-        {activeView==='terminal' && <TerminalPanel namespace={namespace} podName={podName} />}
+        {activeView==='terminal' && <>
+          <TerminalPanel
+            namespace={namespace}
+            podName={podName}
+            onAskFix={(commandResult)=>setQuestion(buildTerminalFixPrompt(commandResult, namespace, podName))}
+          />
+          <ChatPanel
+            messages={messages}
+            loading={loading}
+            namespace={namespace}
+            podName={podName}
+            question={question}
+            setQuestion={setQuestion}
+            updateNamespace={updateNamespace}
+            updatePodName={updatePodName}
+            askAI={askAI}
+          />
+        </>}
       </section>
     </main>
   </div>;
@@ -303,6 +320,21 @@ function buildFixPrompt(issue, namespace, podName){
     ? `pod ${podName} in namespace ${namespace || 'default'}`
     : `namespace ${namespace || 'default'}`;
   return `${issue} for ${target}. Give the root cause, exact fix steps, and copy-paste kubectl commands with the real namespace and pod name.`;
+}
+
+function buildTerminalFixPrompt(commandResult, namespace, podName){
+  const output = [commandResult.stdout, commandResult.stderr].filter(Boolean).join('\n').slice(0,5000);
+  const target = podName
+    ? `pod ${podName} in namespace ${namespace || 'default'}`
+    : `namespace ${namespace || 'default'}`;
+  return [
+    `Fix this Kubernetes issue for ${target}.`,
+    `Command: ${commandResult.command}`,
+    `Exit code: ${commandResult.exit_code}`,
+    'Kubectl output:',
+    output || 'No output returned.',
+    'Give the root cause, exact fix steps, and copy-paste kubectl commands.',
+  ].join('\n');
 }
 
 function HealthTile({label,value,icon,tone}){
@@ -429,7 +461,7 @@ function EventsPanel({events,lastRefresh}){
   </section>;
 }
 
-function TerminalPanel({namespace,podName}){
+function TerminalPanel({namespace,podName,onAskFix}){
   const [command,setCommand]=useState(`kubectl get pods -n ${namespace || 'default'}`);
   const [stdin,setStdin]=useState('');
   const [running,setRunning]=useState(false);
@@ -510,7 +542,13 @@ function TerminalPanel({namespace,podName}){
             <div className="terminal-command">$ {item.command}</div>
             {item.stdout && <pre>{item.stdout}</pre>}
             {item.stderr && <pre className="stderr">{item.stderr}</pre>}
-            {item.exit_code !== null && <small>exit code {item.exit_code}</small>}
+            <div className="terminal-entry-footer">
+              {item.exit_code !== null && <small>exit code {item.exit_code}</small>}
+              {item.exit_code !== null && item.command !== 'kubectl terminal ready' && <button type="button" onClick={()=>onAskFix(item)}>
+                <MessageSquareText size={14}/>
+                Ask AI to fix
+              </button>}
+            </div>
           </div>
         )}
         <div ref={outputRef} />
