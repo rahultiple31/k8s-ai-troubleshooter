@@ -103,7 +103,8 @@ function App(){
   );
 
   const unhealthyPods=pods.filter(p=>p.phase!=='Running' && p.phase!=='Succeeded').length;
-  const syncOk=unhealthyPods===0 && (overview.not_ready_nodes || []).length===0;
+  const nodeIssueCount=(overview.not_ready_nodes || []).length;
+  const syncOk=unhealthyPods===0 && nodeIssueCount===0;
 
   function selectPod(p){
     selectedRef.current={namespace:p.namespace,podName:p.name};
@@ -182,10 +183,10 @@ function App(){
 
       <div className="sidebar-summary">
         <span>Cluster summary</span>
-        <HealthTile label="App Health" value={syncOk ? 'Healthy' : 'Needs attention'} icon={<ShieldCheck/>} tone={syncOk ? 'good' : 'warn'} />
-        <HealthTile label="Sync Status" value={syncOk ? 'Synced' : 'Drift detected'} icon={<GitBranch/>} tone={syncOk ? 'good' : 'warn'} />
-        <HealthTile label="Nodes" value={overview.nodes ?? '-'} icon={<Server/>} />
-        <HealthTile label="Pods" value={overview.pods ?? pods.length ?? '-'} icon={<Boxes/>} />
+        <HealthTile label="App Health" value={syncOk ? 'Healthy' : 'Issue'} icon={<ShieldCheck/>} tone={syncOk ? 'good' : 'bad'} />
+        <HealthTile label="Sync Status" value={syncOk ? 'Working' : 'Check'} icon={<GitBranch/>} tone={syncOk ? 'good' : 'warn'} />
+        <HealthTile label="Nodes" value={overview.nodes ?? '-'} icon={<Server/>} tone={nodeIssueCount ? 'warn' : 'info'} />
+        <HealthTile label="Pods" value={overview.pods ?? pods.length ?? '-'} icon={<Boxes/>} tone={unhealthyPods ? 'bad' : 'info'} />
       </div>
     </aside>
 
