@@ -1063,6 +1063,8 @@ button{
   font-size:10px;
   font-weight:900;
   text-transform:uppercase;
+  line-height:1.25;
+  overflow-wrap:anywhere;
 }
 
 .metric-card strong{

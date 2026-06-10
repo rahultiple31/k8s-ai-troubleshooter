@@ -537,7 +537,7 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
     <div className="monitoring-heading">
       <div>
         <span className="eyebrow">Monitoring</span>
-        <h3>Cluster health dashboard</h3>
+        <h3>Monitoring dashboard</h3>
       </div>
       <div className="monitoring-actions">
         <span>{lastRefresh ? lastRefresh.toLocaleTimeString() : 'loading'}</span>
@@ -550,21 +550,20 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
 
     <div className="monitoring-tree">
       <MonitoringGroup
-        title="Cluster health"
+        title="Cluster"
         icon={<ShieldCheck size={19}/>}
         open={openSection==='cluster'}
         onToggle={()=>setOpenSection(openSection==='cluster' ? '' : 'cluster')}
         badges={[
           `${overview.nodes ?? '-'} node`,
           `${pods.length} pod`,
-          isClusterHealthy ? 'Healthy' : 'Issue',
         ]}
         healthy={isClusterHealthy}
       >
         <div className="monitor-columns three">
-          <MetricCard title="CPU use" value={`${formatMetricValue(clusterCpu)}%`} healthy={clusterCpu < 85} />
-          <MetricCard title="RAM use" value={`${formatMetricValue(clusterMemory)}%`} healthy={clusterMemory < 85} />
-          <MetricCard title="Storage use" value={`${formatMetricValue(clusterStorage)}%`} healthy={clusterStorage < 85} />
+          <MetricCard title="CPU use%" value={`${formatMetricValue(clusterCpu)}%`} healthy={clusterCpu < 85} />
+          <MetricCard title="RAM use%" value={`${formatMetricValue(clusterMemory)}%`} healthy={clusterMemory < 85} />
+          <MetricCard title="Storage use%" value={`${formatMetricValue(clusterStorage)}%`} healthy={clusterStorage < 85} />
         </div>
       </MonitoringGroup>
 
@@ -577,9 +576,9 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
         healthy={!(overview.not_ready_nodes || []).length}
       >
         <div className="monitor-columns three">
-          <MetricList title="CPU use" rows={nodeCpuRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value<85}))} empty="No node CPU data" />
-          <MetricList title="RAM use" rows={nodeMemoryRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value<85}))} empty="No node RAM data" />
-          <MetricList title="Storage use" rows={nodeStorageRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value<85}))} empty="No node storage data" />
+          <MetricList title="CPU use%" rows={nodeCpuRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value<85}))} empty="No node CPU data" />
+          <MetricList title="RAM use%" rows={nodeMemoryRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value<85}))} empty="No node RAM data" />
+          <MetricList title="Storage use%" rows={nodeStorageRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value<85}))} empty="No node storage data" />
         </div>
       </MonitoringGroup>
 
@@ -592,7 +591,7 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
         healthy={!unhealthyPods.length && !sumRows(restartRows)}
       >
         <div className="monitor-columns three">
-          <MetricList title="Pod use" rows={podMetricRows.slice(0,8).map(row=>({
+          <MetricList title="CPU use%, RAM use%, storage use%" rows={podMetricRows.slice(0,8).map(row=>({
             label:row.label,
             value:[row.cpu,row.ram,row.storage].filter(Boolean).join(' / ') || 'no metrics',
             healthy:row.healthy,
@@ -611,13 +610,13 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
         icon={<Network size={19}/>}
         open={openSection==='networking'}
         onToggle={()=>setOpenSection(openSection==='networking' ? '' : 'networking')}
-        badges={[`${services.length} svc`, `${formatMetricValue(sumRows(httpErrorRows))}% http`, `${formatMetricValue(sumRows(httpsErrorRows))}% https`]}
+        badges={[`${services.length} service`, `${formatMetricValue(sumRows(httpErrorRows))}% http error`, `${formatMetricValue(sumRows(httpsErrorRows))}% https error`]}
         healthy={!sumRows(httpErrorRows) && !sumRows(httpsErrorRows)}
       >
         <div className="monitor-columns three">
-          <MetricList title="Services" rows={serviceRows} empty="No services" />
-          <MetricList title="HTTP errors" rows={httpErrorRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value===0}))} empty="No HTTP errors" />
-          <MetricList title="HTTPS errors" rows={httpsErrorRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value===0}))} empty="No HTTPS errors" />
+          <MetricList title="Service" rows={serviceRows} empty="No services" />
+          <MetricList title="HTTP error%" rows={httpErrorRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value===0}))} empty="No HTTP errors" />
+          <MetricList title="HTTPS error%" rows={httpsErrorRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value===0}))} empty="No HTTPS errors" />
         </div>
       </MonitoringGroup>
     </div>

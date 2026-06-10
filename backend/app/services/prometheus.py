@@ -78,7 +78,10 @@ class PrometheusService:
             "node_storage": self.query(
                 'max by(instance)(100 - ((node_filesystem_avail_bytes{fstype!~"tmpfs|overlay",mountpoint!~"/run.*|/var/lib/kubelet/pods.*"} * 100) / node_filesystem_size_bytes{fstype!~"tmpfs|overlay",mountpoint!~"/run.*|/var/lib/kubelet/pods.*"}))'
             ),
-            "pod_cpu": self.query('sum by(namespace,pod)(rate(container_cpu_usage_seconds_total{container!="",pod!=""}[5m])) * 100'),
+            "pod_cpu": self.query(
+                '100 * sum by(namespace,pod)(rate(container_cpu_usage_seconds_total{container!="",pod!=""}[5m])) / '
+                'clamp_min(sum by(namespace,pod)((container_spec_cpu_quota{container!="",pod!=""} > 0) / container_spec_cpu_period{container!="",pod!=""}), 0.001)'
+            ),
             "pod_memory": self.query(
                 '100 * sum by(namespace,pod)(container_memory_working_set_bytes{container!="",pod!=""}) / '
                 'clamp_min(sum by(namespace,pod)(container_spec_memory_limit_bytes{container!="",pod!=""} > 0), 1)'
