@@ -1099,7 +1099,11 @@ button{
 
 .stat-panel strong{
   color:#73bf69;
-  font-size:64px;
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  color:#73bf69;
+  font-size:clamp(28px,4vw,64px);
   line-height:.95;
   font-weight:900;
 }
@@ -1112,9 +1116,107 @@ button{
   color:#f2495c;
 }
 
-.bar-panel{
+.coredns-dashboard{
+  margin-top:10px;
+}
+
+.coredns-global-grid{
+  display:grid;
+  grid-template-columns:minmax(280px,460px) minmax(0,1fr);
+  gap:7px;
+}
+
+.coredns-health-row{
+  display:grid;
+  grid-template-columns:2fr repeat(4,1fr) 1fr 1.25fr;
+  gap:7px;
+}
+
+.coredns-health-row .stat-panel strong{
+  font-size:clamp(22px,2.2vw,48px);
+}
+
+.pie-panel{
+  min-height:250px;
+}
+
+.pie-layout{
+  display:grid;
+  grid-template-columns:170px minmax(0,1fr);
+  align-items:center;
+  gap:14px;
+  padding:18px;
+}
+
+.pie-chart{
+  width:140px;
+  height:140px;
+  border-radius:50%;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);
+}
+
+.legend-list{
+  display:grid;
+  gap:8px;
+}
+
+.legend-row,.chart-legend span{
+  display:grid;
+  grid-template-columns:12px minmax(0,1fr) max-content;
+  align-items:center;
+  gap:7px;
+  color:#c8d0d9;
+  font-size:12px;
+}
+
+.legend-row i,.chart-legend i{
+  width:11px;
+  height:3px;
+  border-radius:999px;
+}
+
+.legend-row span{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.legend-row strong{
+  color:#5eb7ff;
+}
+
+.line-panel,.bar-panel{
   min-height:220px;
   padding-bottom:8px;
+}
+
+.line-panel svg{
+  width:100%;
+  height:160px;
+  display:block;
+  padding:10px;
+}
+
+.line-panel line{
+  stroke:#2b323b;
+  stroke-width:1;
+}
+
+.line-panel polyline{
+  fill:none;
+  stroke-width:2;
+}
+
+.chart-legend{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px 14px;
+  padding:0 12px 8px;
+}
+
+.chart-legend span{
+  display:inline-flex;
 }
 
 .bar-list{
@@ -1512,7 +1614,7 @@ button{
   .bubble{
     max-width:92%;
   }
-  .grafana-chart-grid,.stat-row,.cluster-stat-row,.cluster-health-row,.pod-strip{
+  .grafana-chart-grid,.stat-row,.cluster-stat-row,.cluster-health-row,.coredns-global-grid,.coredns-health-row,.pod-strip{
     grid-template-columns:1fr;
   }
 }
