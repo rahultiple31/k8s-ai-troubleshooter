@@ -453,6 +453,7 @@ button{
 }
 
 .graph{
+  flex:1;
   min-height:300px;
   padding:10px;
   background:#ecf3f6;
@@ -663,39 +664,6 @@ button{
 .namespace-group.has-issue .namespace-row .phase{
   color:#ba3939;
   background:#ffeded;
-}
-
-.pod-table-wrap{
-  overflow:auto;
-  border-top:1px solid var(--line);
-}
-
-table{
-  width:100%;
-  border-collapse:collapse;
-  font-size:14px;
-}
-
-th,td{
-  text-align:left;
-  padding:12px 14px;
-  border-bottom:1px solid var(--line);
-  white-space:nowrap;
-}
-
-th{
-  color:var(--muted);
-  background:#f8fbfc;
-  font-size:12px;
-  text-transform:uppercase;
-}
-
-tr{
-  cursor:pointer;
-}
-
-tbody tr:hover,tbody tr.selected{
-  background:#edf9f6;
 }
 
 .empty{

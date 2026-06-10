@@ -260,25 +260,6 @@ function App(){
             onSelectPod={selectPod}
             onSelectNamespace={selectNamespace}
           />
-
-          <div className="pod-table-wrap">
-            <table>
-              <thead>
-                <tr><th>Namespace</th><th>Pod</th><th>Phase</th><th>Restarts</th></tr>
-              </thead>
-              <tbody>
-                {filteredPods.map((p,i)=>
-                  <tr key={`${p.namespace}-${p.name}-${i}`} onClick={()=>selectPod(p)} className={p.name===podName ? 'selected' : ''}>
-                    <td>{p.namespace}</td>
-                    <td>{p.name}</td>
-                    <td><PhaseBadge phase={p.phase}/></td>
-                    <td>{p.restarts}</td>
-                  </tr>
-                )}
-                {!filteredPods.length && <tr><td colSpan="4" className="empty">No pods found</td></tr>}
-              </tbody>
-            </table>
-          </div>
         </section>
       </section>
     </main>
