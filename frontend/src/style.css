@@ -988,6 +988,96 @@ button{
   background:#ecf3f6;
 }
 
+.monitoring-overview-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+}
+
+.percent-tile{
+  min-width:0;
+  min-height:92px;
+  display:grid;
+  grid-template-columns:36px minmax(0,1fr);
+  grid-template-rows:1fr 8px;
+  gap:8px 10px;
+  align-items:center;
+  border:1px solid var(--line);
+  border-radius:7px;
+  background:#fff;
+  padding:12px;
+}
+
+.percent-tile.healthy{
+  border-left:3px solid var(--teal);
+}
+
+.percent-tile.has-issue{
+  border-left:3px solid var(--red);
+}
+
+.percent-icon{
+  width:36px;
+  height:36px;
+  display:grid;
+  place-items:center;
+  color:#0f8b77;
+  background:#e8fbf6;
+  border-radius:8px;
+}
+
+.percent-tile.has-issue .percent-icon{
+  color:#c04444;
+  background:#ffeded;
+}
+
+.percent-copy{
+  min-width:0;
+}
+
+.percent-copy span{
+  display:block;
+  color:var(--muted);
+  font-size:10px;
+  font-weight:900;
+  text-transform:uppercase;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.percent-copy strong{
+  display:block;
+  margin-top:3px;
+  color:#0f7f6d;
+  font-size:26px;
+  line-height:1;
+  font-weight:950;
+}
+
+.percent-tile.has-issue .percent-copy strong{
+  color:#c04444;
+}
+
+.percent-bar{
+  grid-column:1 / -1;
+  height:8px;
+  overflow:hidden;
+  border-radius:999px;
+  background:#e6eef2;
+}
+
+.percent-bar span{
+  display:block;
+  height:100%;
+  border-radius:999px;
+  background:#00b894;
+}
+
+.percent-tile.has-issue .percent-bar span{
+  background:#ee5b5b;
+}
+
 .monitor-group{
   border:1px solid var(--line);
   border-radius:7px;
@@ -1040,6 +1130,10 @@ button{
 
 .monitor-columns.three{
   grid-template-columns:repeat(3,minmax(0,1fr));
+}
+
+.monitor-columns.two{
+  grid-template-columns:repeat(2,minmax(0,1fr));
 }
 
 .monitor-columns.four{
@@ -1354,7 +1448,7 @@ button{
   .bubble{
     max-width:92%;
   }
-  .monitor-columns.three,.monitor-columns.four,.pod-strip{
+  .monitoring-overview-grid,.monitor-columns.two,.monitor-columns.three,.monitor-columns.four,.pod-strip{
     grid-template-columns:1fr;
   }
 }
