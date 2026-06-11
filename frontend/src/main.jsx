@@ -555,16 +555,16 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
   const eventHealthPercent=percentage(Math.max(events.length - warningEvents.length,0),events.length);
   const logHealthPercent=percentage(Math.max(pods.length - logAlerts.length,0),pods.length);
   const clusterHealthPercent=Math.round((nodeHealthPercent + podHealthPercent + eventHealthPercent + logHealthPercent) / 4);
-  const clusterUtilization=averageNumbers([clusterCpu,clusterMemory,clusterStorage]);
-  const nodeUtilization=averageRows(nodeCpuRows,nodeMemoryRows,nodeStorageRows);
+  const clusterUtilization=clusterCpu;
+  const nodeUtilization=averageRows(nodeCpuRows);
   const podUtilization=averageRows(podCpuRows,podMemoryRows,podStorageRows);
   const metricsSummaryRows=[
-    {label:'Cluster CPU',value:`${formatMetricValue(clusterCpu)}%`,healthy:clusterCpu<85},
-    {label:'Cluster RAM',value:`${formatMetricValue(clusterMemory)}%`,healthy:clusterMemory<85},
-    {label:'Cluster storage',value:`${formatMetricValue(clusterStorage)}%`,healthy:clusterStorage<85},
-    {label:'Cluster utilization',value:`${formatMetricValue(clusterUtilization)}%`,healthy:clusterUtilization<85},
-    {label:'Node utilization',value:`${formatMetricValue(nodeUtilization)}%`,healthy:nodeUtilization<85},
-    {label:'Pod utilization',value:`${formatMetricValue(podUtilization)}%`,healthy:podUtilization<85},
+    {label:'Cluster CPU',value:formatPercentValue(clusterCpu),healthy:isMetricHealthy(clusterCpu)},
+    {label:'Cluster RAM',value:formatPercentValue(clusterMemory),healthy:isMetricHealthy(clusterMemory)},
+    {label:'Cluster storage',value:formatPercentValue(clusterStorage),healthy:isMetricHealthy(clusterStorage)},
+    {label:'Cluster CPU utilization',value:formatPercentValue(clusterUtilization),healthy:isMetricHealthy(clusterUtilization)},
+    {label:'Node CPU utilization',value:formatPercentValue(nodeUtilization),healthy:isMetricHealthy(nodeUtilization)},
+    {label:'Pod utilization',value:formatPercentValue(podUtilization),healthy:isMetricHealthy(podUtilization)},
     {label:'Pod restarts',value:String(restartTotal),healthy:restartTotal===0},
   ];
   const podHealthRows=pods.slice(0,8).map(pod=>({
@@ -620,9 +620,9 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
         <PercentTile title="Cluster health" value={clusterHealthPercent} icon={<ShieldCheck size={20}/>} healthy={isClusterHealthy} />
         <PercentTile title="Node health" value={nodeHealthPercent} icon={<Server size={20}/>} healthy={!hasNodeIssues} />
         <PercentTile title="Pod health" value={podHealthPercent} icon={<Boxes size={20}/>} healthy={!hasPodIssues} />
-        <PercentTile title="Cluster utilization" value={clusterUtilization} icon={<Gauge size={20}/>} healthy={clusterUtilization<85} />
-        <PercentTile title="Node utilization" value={nodeUtilization} icon={<BarChart3 size={20}/>} healthy={nodeUtilization<85} />
-        <PercentTile title="Pod utilization" value={podUtilization} icon={<Activity size={20}/>} healthy={podUtilization<85} />
+        <PercentTile title="Cluster CPU utilization" value={clusterUtilization} icon={<Gauge size={20}/>} healthy={isMetricHealthy(clusterUtilization)} />
+        <PercentTile title="Node CPU utilization" value={nodeUtilization} icon={<BarChart3 size={20}/>} healthy={isMetricHealthy(nodeUtilization)} />
+        <PercentTile title="Pod utilization" value={podUtilization} icon={<Activity size={20}/>} healthy={isMetricHealthy(podUtilization)} />
       </div>
 
       <MonitoringGroup
@@ -634,7 +634,7 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
           `${overview.nodes ?? '-'} node`,
           `${pods.length} pod`,
           `${clusterHealthPercent}% health`,
-          `${formatMetricValue(clusterUtilization)}% used`,
+          `${formatPercentValue(clusterUtilization)} cpu`,
         ]}
         healthy={isClusterHealthy}
       >
@@ -642,7 +642,7 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
           <MetricCard title="Cluster health" value={`${clusterHealthPercent}%`} healthy={isClusterHealthy} />
           <MetricCard title="Node health" value={`${nodeHealthPercent}%`} healthy={!hasNodeIssues} />
           <MetricCard title="Pod health" value={`${podHealthPercent}%`} healthy={!hasPodIssues} />
-          <MetricCard title="Cluster utilization" value={`${formatMetricValue(clusterUtilization)}%`} healthy={clusterUtilization<85} />
+          <MetricCard title="Cluster CPU utilization" value={formatPercentValue(clusterUtilization)} healthy={isMetricHealthy(clusterUtilization)} />
         </div>
       </MonitoringGroup>
 
@@ -651,14 +651,14 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
         icon={<BarChart3 size={19}/>}
         open={openSections.metrics}
         onToggle={()=>toggleSection('metrics')}
-        badges={[`${formatMetricValue(clusterUtilization)}% cluster`, `${formatMetricValue(nodeUtilization)}% node`, `${formatMetricValue(podUtilization)}% pod`]}
-        healthy={clusterUtilization<85 && nodeUtilization<85 && podUtilization<85}
+        badges={[`${formatPercentValue(clusterUtilization)} cluster cpu`, `${formatPercentValue(nodeUtilization)} node cpu`, `${formatPercentValue(podUtilization)} pod`]}
+        healthy={isMetricHealthy(clusterUtilization) && isMetricHealthy(nodeUtilization) && isMetricHealthy(podUtilization)}
       >
         <div className="monitor-columns four">
           <MetricList title="Utilization summary" rows={metricsSummaryRows} empty="No cluster metrics" />
-          <MetricList title="CPU use%" rows={nodeCpuRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value<85}))} empty="No node CPU data" />
-          <MetricList title="RAM use%" rows={nodeMemoryRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value<85}))} empty="No node RAM data" />
-          <MetricList title="Storage use%" rows={nodeStorageRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value<85}))} empty="No node storage data" />
+          <MetricList title="CPU use%" rows={nodeCpuRows.map(row=>({label:row.label,value:formatPercentValue(row.value),healthy:isMetricHealthy(row.value)}))} empty="No node CPU data" />
+          <MetricList title="RAM use%" rows={nodeMemoryRows.map(row=>({label:row.label,value:formatPercentValue(row.value),healthy:isMetricHealthy(row.value)}))} empty="No node RAM data" />
+          <MetricList title="Storage use%" rows={nodeStorageRows.map(row=>({label:row.label,value:formatPercentValue(row.value),healthy:isMetricHealthy(row.value)}))} empty="No node storage data" />
         </div>
       </MonitoringGroup>
 
@@ -667,13 +667,13 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
         icon={<Boxes size={19}/>}
         open={openSections.pod}
         onToggle={()=>toggleSection('pod')}
-        badges={[`${podHealthPercent}% health`, `${formatMetricValue(podUtilization)}% used`, `${pods.length} pod`]}
+        badges={[`${podHealthPercent}% health`, `${formatPercentValue(podUtilization)} used`, `${pods.length} pod`]}
         healthy={!hasPodIssues}
       >
         <div className="monitor-columns four">
-          <MetricList title="CPU use%" rows={podCpuRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value<85}))} empty="No pod CPU data" />
-          <MetricList title="RAM use%" rows={podMemoryRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value<85}))} empty="No pod RAM data" />
-          <MetricList title="Storage use%" rows={podStorageRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value<85}))} empty="No pod storage data" />
+          <MetricList title="CPU use%" rows={podCpuRows.map(row=>({label:row.label,value:formatPercentValue(row.value),healthy:isMetricHealthy(row.value)}))} empty="No pod CPU data" />
+          <MetricList title="RAM use%" rows={podMemoryRows.map(row=>({label:row.label,value:formatPercentValue(row.value),healthy:isMetricHealthy(row.value)}))} empty="No pod RAM data" />
+          <MetricList title="Storage use%" rows={podStorageRows.map(row=>({label:row.label,value:formatPercentValue(row.value),healthy:isMetricHealthy(row.value)}))} empty="No pod storage data" />
           <MetricList title="Pod health" rows={podHealthRows} empty="No pod health data" />
         </div>
       </MonitoringGroup>
@@ -711,13 +711,13 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
         icon={<Network size={19}/>}
         open={openSections.networking}
         onToggle={()=>toggleSection('networking')}
-        badges={[`${services.length} service`, `${formatMetricValue(sumRows(httpErrorRows))}% http error`, `${formatMetricValue(sumRows(httpsErrorRows))}% https error`]}
+        badges={[`${services.length} service`, `${formatPercentValue(sumRows(httpErrorRows))} http error`, `${formatPercentValue(sumRows(httpsErrorRows))} https error`]}
         healthy={!sumRows(httpErrorRows) && !sumRows(httpsErrorRows)}
       >
         <div className="monitor-columns three">
           <MetricList title="Service" rows={serviceRows} empty="No services" />
-          <MetricList title="HTTP error%" rows={httpErrorRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value===0}))} empty="No HTTP errors" />
-          <MetricList title="HTTPS error%" rows={httpsErrorRows.map(row=>({label:row.label,value:`${formatMetricValue(row.value)}%`,healthy:row.value===0}))} empty="No HTTPS errors" />
+          <MetricList title="HTTP error%" rows={httpErrorRows.map(row=>({label:row.label,value:formatPercentValue(row.value),healthy:row.value===0}))} empty="No HTTP errors" />
+          <MetricList title="HTTPS error%" rows={httpsErrorRows.map(row=>({label:row.label,value:formatPercentValue(row.value),healthy:row.value===0}))} empty="No HTTPS errors" />
         </div>
       </MonitoringGroup>
     </div>
@@ -738,12 +738,13 @@ function MonitoringGroup({title,icon,open,onToggle,badges,healthy,children}){
 }
 
 function PercentTile({title,value,icon,healthy=true}){
-  const bounded=Math.max(0,Math.min(100,Number.isFinite(value) ? value : 0));
-  return <div className={`percent-tile ${healthy ? 'healthy' : 'has-issue'}`}>
+  const hasValue=Number.isFinite(value);
+  const bounded=Math.max(0,Math.min(100,hasValue ? value : 0));
+  return <div className={`percent-tile ${hasValue ? (healthy ? 'healthy' : 'has-issue') : 'unavailable'}`}>
     <div className="percent-icon">{icon}</div>
     <div className="percent-copy">
       <span>{title}</span>
-      <strong>{formatMetricValue(bounded)}%</strong>
+      <strong>{formatPercentValue(value)}</strong>
     </div>
     <div className="percent-bar" aria-hidden="true">
       <span style={{width:`${bounded}%`}} />
@@ -788,8 +789,11 @@ function prometheusScalar(response){
 }
 
 function promNumber(value){
-  const number=Number(value || 0);
-  return Number.isFinite(number) ? number : 0;
+  if(value === undefined || value === null || value === ''){
+    return null;
+  }
+  const number=Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 function percentage(part,total){
@@ -799,7 +803,7 @@ function percentage(part,total){
 
 function averageNumbers(values){
   const numbers=values.filter(value=>Number.isFinite(value));
-  if(!numbers.length) return 0;
+  if(!numbers.length) return null;
   return numbers.reduce((sum,value)=>sum + value,0) / numbers.length;
 }
 
@@ -843,6 +847,14 @@ function formatMetricValue(value){
   if(!Number.isFinite(value)) return '0';
   if(value>=100) return String(Math.round(value));
   return value.toFixed(1);
+}
+
+function formatPercentValue(value){
+  return Number.isFinite(value) ? `${formatMetricValue(value)}%` : 'No data';
+}
+
+function isMetricHealthy(value){
+  return Number.isFinite(value) && value<85;
 }
 
 function TerminalPanel({namespace,podName,onAskFix}){

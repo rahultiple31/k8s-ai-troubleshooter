@@ -1016,6 +1016,10 @@ button{
   border-left:3px solid var(--red);
 }
 
+.percent-tile.unavailable{
+  border-left:3px solid #8aa1ae;
+}
+
 .percent-icon{
   width:36px;
   height:36px;
@@ -1029,6 +1033,11 @@ button{
 .percent-tile.has-issue .percent-icon{
   color:#c04444;
   background:#ffeded;
+}
+
+.percent-tile.unavailable .percent-icon{
+  color:#657684;
+  background:#edf3f6;
 }
 
 .percent-copy{
@@ -1059,6 +1068,10 @@ button{
   color:#c04444;
 }
 
+.percent-tile.unavailable .percent-copy strong{
+  color:#657684;
+}
+
 .percent-bar{
   grid-column:1 / -1;
   height:8px;
@@ -1076,6 +1089,10 @@ button{
 
 .percent-tile.has-issue .percent-bar span{
   background:#ee5b5b;
+}
+
+.percent-tile.unavailable .percent-bar span{
+  background:#8aa1ae;
 }
 
 .monitor-group{
