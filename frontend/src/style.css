@@ -1183,6 +1183,10 @@ button{
 }
 
 .metric-card strong{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
   color:#0f7f6d;
   font-size:18px;
   font-weight:900;

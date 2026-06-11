@@ -40,7 +40,7 @@ flowchart LR
     ui[React Frontend] --> overview[GET /api/cluster/overview]
     ui --> pods[GET /api/cluster/pods]
     ui --> troubleshoot[POST /api/ai/troubleshoot]
-    ui --> prom[GET /api/cluster/prometheus/node-memory]
+    ui --> prom[GET /api/cluster/prometheus/cluster-dashboard]
 
     overview --> k8sObjects[Kubernetes API object list]
     pods --> k8sPods[Kubernetes API pod list]
@@ -143,7 +143,7 @@ That avoids the error where a pod stays pending because no default
 | PVC status | Kubernetes API | `backend/app/services/k8s_client.py` -> `list_pvcs` | Used for Pending pod and storage issues |
 | Kubernetes events | Kubernetes API | `backend/app/services/k8s_client.py` -> `get_pod_events` | Used by rules engine |
 | Container logs | Kubernetes API | `backend/app/services/k8s_client.py` -> `get_pod_logs` | Reads current pod logs directly from Kubernetes |
-| Metrics | Prometheus API | `backend/app/services/prometheus.py` | Currently exposed for node memory |
+| Metrics | Prometheus API | `backend/app/services/prometheus.py` | Exposed for cluster, node, pod, networking, and CoreDNS dashboard data |
 | AI explanation | LLM service | `backend/app/services/llm.py` | Explains rule output |
 | Database | PostgreSQL | Helm `DATABASE_URL` env var | Configured, but incident-history persistence is still a future improvement |
 | Cache or queue | Redis | Helm `REDIS_URL` env var | Configured for future background jobs/cache |
@@ -154,11 +154,15 @@ That avoids the error where a pod stays pending because no default
 - Logs are not collected from Prometheus.
 - Kubernetes events are not collected from Prometheus.
 - Prometheus is used for metrics queries only.
-- The current implemented Prometheus endpoint is:
+- The main implemented Prometheus monitoring endpoint is:
 
 ```text
-GET /api/cluster/prometheus/node-memory
+GET /api/cluster/prometheus/cluster-dashboard
 ```
+
+The backend reads `PROMETHEUS_URL` first, then falls back through common
+in-cluster Prometheus service names. You can also set `PROMETHEUS_URLS` to a
+comma-separated list when your Prometheus service uses a custom name.
 
 - The main troubleshooting endpoint is:
 

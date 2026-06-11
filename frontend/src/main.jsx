@@ -480,8 +480,10 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
   const [loadingMetrics,setLoadingMetrics]=useState(false);
   const [openSections,setOpenSections]=useState({
     cluster:true,
+    node:true,
     pod:true,
     networking:false,
+    source:false,
   });
 
   async function loadMetrics(){
@@ -494,6 +496,7 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
       setMetrics(current=>({
         cluster:clusterResult.status==='fulfilled' ? clusterResult.value : current.cluster,
         logAlerts:logResult.status==='fulfilled' ? logResult.value : current.logAlerts,
+        error:clusterResult.status==='rejected' ? clusterResult.reason?.message || 'Prometheus metrics unavailable' : '',
       }));
     } catch (err) {
       setMetrics(current=>current);
@@ -515,10 +518,15 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
       .map(event=>`${event.namespace}/${event.object_name}`)
   );
   const podLogCounts=countByKey(logAlerts.map(alert=>`${alert.namespace}/${alert.pod}`));
-  const nodeCpuRows=prometheusRows(cluster.node_cpu,['instance']).slice(0,8);
+  const nodeCpuRows=prometheusRows(cluster.node_cpu,['instance','node']).slice(0,8);
+  const nodeMemoryRows=prometheusRows(cluster.node_memory,['instance','node']).slice(0,8);
+  const nodeStorageRows=prometheusRows(cluster.node_storage,['instance','node']).slice(0,8);
   const podCpuRows=prometheusRows(cluster.pod_cpu,['namespace','pod']).slice(0,8);
   const podMemoryRows=prometheusRows(cluster.pod_memory,['namespace','pod']).slice(0,8);
   const podStorageRows=prometheusRows(cluster.pod_storage,['namespace','pod']).slice(0,8);
+  const podCpuUsageRows=prometheusRows(cluster.pod_cpu_usage,['namespace','pod']).slice(0,8);
+  const podMemoryUsageRows=prometheusRows(cluster.pod_memory_usage,['namespace','pod']).slice(0,8);
+  const podStorageUsageRows=prometheusRows(cluster.pod_storage_usage,['namespace','pod']).slice(0,8);
   const httpErrorRows=combineRows(
     prometheusRows(cluster.http_errors_code,['namespace','service','code']),
     prometheusRows(cluster.http_errors_status,['namespace','service','status']),
@@ -529,6 +537,8 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
   ).slice(0,8);
   const readyNodes=Math.max((overview.nodes || 0) - (overview.not_ready_nodes || []).length,0);
   const clusterCpu=prometheusScalar(cluster.cluster_cpu);
+  const clusterMemory=prometheusScalar(cluster.cluster_memory);
+  const clusterStorage=prometheusScalar(cluster.cluster_storage);
   const nodeHealthPercent=percentage(readyNodes,overview.nodes || 0);
   const healthyPodCount=pods.filter(pod=>
     (pod.phase==='Running' || pod.phase==='Succeeded') &&
@@ -548,6 +558,38 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
   const clusterUtilization=clusterCpu;
   const nodeUtilization=averageRows(nodeCpuRows);
   const podUtilization=averageRows(podCpuRows,podMemoryRows,podStorageRows);
+  const podCpuListRows=(podCpuRows.length ? podCpuRows.map(row=>({
+    label:row.label,
+    value:formatPercentValue(row.value),
+    healthy:isMetricHealthy(row.value),
+  })) : podCpuUsageRows.map(row=>({
+    label:row.label,
+    value:formatCoreValue(row.value),
+    healthy:null,
+  })));
+  const podMemoryListRows=(podMemoryRows.length ? podMemoryRows.map(row=>({
+    label:row.label,
+    value:formatPercentValue(row.value),
+    healthy:isMetricHealthy(row.value),
+  })) : podMemoryUsageRows.map(row=>({
+    label:row.label,
+    value:formatBytes(row.value),
+    healthy:null,
+  })));
+  const podStorageListRows=(podStorageRows.length ? podStorageRows.map(row=>({
+    label:row.label,
+    value:formatPercentValue(row.value),
+    healthy:isMetricHealthy(row.value),
+  })) : podStorageUsageRows.map(row=>({
+    label:row.label,
+    value:formatBytes(row.value),
+    healthy:null,
+  })));
+  const sourceRows=Object.entries(cluster.errors || {}).map(([label,value])=>({
+    label,
+    value:String(value).slice(0,160),
+    healthy:false,
+  })).slice(0,8);
   const podHealthRows=pods.slice(0,8).map(pod=>({
     label:`${pod.namespace}/${pod.name}`,
     value:[
@@ -614,6 +656,25 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
           <MetricCard title="Node health" value={`${nodeHealthPercent}%`} healthy={!hasNodeIssues} />
           <MetricCard title="Pod health" value={`${podHealthPercent}%`} healthy={!hasPodIssues} />
           <MetricCard title="Cluster utilization cpu %" value={formatPercentValue(clusterUtilization)} healthy={isMetricHealthy(clusterUtilization)} />
+          <MetricCard title="Cluster utilization ram %" value={formatPercentValue(clusterMemory)} healthy={isMetricHealthy(clusterMemory)} />
+          <MetricCard title="Cluster utilization storage %" value={formatPercentValue(clusterStorage)} healthy={isMetricHealthy(clusterStorage)} />
+          <MetricCard title="Prometheus source" value={cluster.prometheus?.active_url ? hostnameLabel(cluster.prometheus.active_url) : 'No source'} healthy={cluster.prometheus?.active_url ? true : null} />
+          <MetricCard title="Metric errors" value={String(Object.keys(cluster.errors || {}).length)} healthy={Object.keys(cluster.errors || {}).length ? false : true} />
+        </div>
+      </MonitoringGroup>
+
+      <MonitoringGroup
+        title="Node"
+        icon={<Server size={19}/>}
+        open={openSections.node}
+        onToggle={()=>toggleSection('node')}
+        badges={[`${formatPercentValue(nodeUtilization)} cpu`, `${nodeMemoryRows.length} ram metric`, `${nodeStorageRows.length} storage metric`]}
+        healthy={!hasNodeIssues && isMetricHealthy(nodeUtilization) !== false}
+      >
+        <div className="monitor-columns three">
+          <MetricList title="Node CPU use%" rows={nodeCpuRows.map(row=>({label:row.label,value:formatPercentValue(row.value),healthy:isMetricHealthy(row.value)}))} empty="No node CPU data" />
+          <MetricList title="Node RAM use%" rows={nodeMemoryRows.map(row=>({label:row.label,value:formatPercentValue(row.value),healthy:isMetricHealthy(row.value)}))} empty="No node RAM data" />
+          <MetricList title="Node storage use%" rows={nodeStorageRows.map(row=>({label:row.label,value:formatPercentValue(row.value),healthy:isMetricHealthy(row.value)}))} empty="No node storage data" />
         </div>
       </MonitoringGroup>
 
@@ -626,9 +687,9 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
         healthy={!hasPodIssues}
       >
         <div className="monitor-columns four">
-          <MetricList title="CPU use%" rows={podCpuRows.map(row=>({label:row.label,value:formatPercentValue(row.value),healthy:isMetricHealthy(row.value)}))} empty="No pod CPU data" />
-          <MetricList title="RAM use%" rows={podMemoryRows.map(row=>({label:row.label,value:formatPercentValue(row.value),healthy:isMetricHealthy(row.value)}))} empty="No pod RAM data" />
-          <MetricList title="Storage use%" rows={podStorageRows.map(row=>({label:row.label,value:formatPercentValue(row.value),healthy:isMetricHealthy(row.value)}))} empty="No pod storage data" />
+          <MetricList title={podCpuRows.length ? 'CPU use%' : 'CPU cores'} rows={podCpuListRows} empty="No pod CPU data" />
+          <MetricList title={podMemoryRows.length ? 'RAM use%' : 'RAM usage'} rows={podMemoryListRows} empty="No pod RAM data" />
+          <MetricList title={podStorageRows.length ? 'Storage use%' : 'Storage usage'} rows={podStorageListRows} empty="No pod storage data" />
           <MetricList title="Pod health" rows={podHealthRows} empty="No pod health data" />
         </div>
       </MonitoringGroup>
@@ -647,6 +708,20 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
           <MetricList title="HTTPS error%" rows={httpsErrorRows.map(row=>({label:row.label,value:formatPercentValue(row.value),healthy:row.value===0}))} empty="No HTTPS errors" />
         </div>
       </MonitoringGroup>
+
+      {(metrics.error || sourceRows.length>0) && <MonitoringGroup
+        title="Metric source"
+        icon={<AlertTriangle size={19}/>}
+        open={openSections.source}
+        onToggle={()=>toggleSection('source')}
+        badges={[cluster.prometheus?.active_url ? hostnameLabel(cluster.prometheus.active_url) : 'no prometheus', `${sourceRows.length} issue`]}
+        healthy={!metrics.error && sourceRows.length===0}
+      >
+        <div className="monitor-columns two">
+          <MetricList title="Prometheus query errors" rows={sourceRows} empty={metrics.error || 'No Prometheus query errors'} />
+          <MetricList title="Configured URLs" rows={(cluster.prometheus?.configured_urls || []).map(url=>({label:hostnameLabel(url),value:url,healthy:url===cluster.prometheus?.active_url}))} empty="No Prometheus URLs configured" />
+        </div>
+      </MonitoringGroup>}
     </div>
   </section>;
 }
@@ -776,6 +851,32 @@ function formatMetricValue(value){
 
 function formatPercentValue(value){
   return Number.isFinite(value) ? `${formatMetricValue(value)}%` : 'No data';
+}
+
+function formatCoreValue(value){
+  if(!Number.isFinite(value)) return 'No data';
+  if(value>=1) return `${value.toFixed(2)} core`;
+  return `${Math.round(value * 1000)}m`;
+}
+
+function formatBytes(value){
+  if(!Number.isFinite(value)) return 'No data';
+  const units=['B','KiB','MiB','GiB','TiB'];
+  let size=value;
+  let unitIndex=0;
+  while(size>=1024 && unitIndex<units.length-1){
+    size/=1024;
+    unitIndex+=1;
+  }
+  return `${size>=10 ? size.toFixed(0) : size.toFixed(1)} ${units[unitIndex]}`;
+}
+
+function hostnameLabel(url){
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return String(url || 'unknown');
+  }
 }
 
 function isMetricHealthy(value){
