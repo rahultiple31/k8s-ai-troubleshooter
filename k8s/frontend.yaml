@@ -15,10 +15,26 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: docker.io/rahultipledocker/k8s-ai-frontend:latest
+        image: docker.io/rahultipledocker/k8s-ai-frontend:cae73143c795bed8ae2b228e2565fc8a0dcc0579
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 6
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          timeoutSeconds: 3
+          failureThreshold: 3
         resources:
           requests:
             cpu: 50m

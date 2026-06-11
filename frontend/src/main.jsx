@@ -562,8 +562,8 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
     {label:'Cluster CPU',value:formatPercentValue(clusterCpu),healthy:isMetricHealthy(clusterCpu)},
     {label:'Cluster RAM',value:formatPercentValue(clusterMemory),healthy:isMetricHealthy(clusterMemory)},
     {label:'Cluster storage',value:formatPercentValue(clusterStorage),healthy:isMetricHealthy(clusterStorage)},
-    {label:'Cluster CPU utilization',value:formatPercentValue(clusterUtilization),healthy:isMetricHealthy(clusterUtilization)},
-    {label:'Node CPU utilization',value:formatPercentValue(nodeUtilization),healthy:isMetricHealthy(nodeUtilization)},
+    {label:'Cluster utilization cpu %',value:formatPercentValue(clusterUtilization),healthy:isMetricHealthy(clusterUtilization)},
+    {label:'Node utilization cpu %',value:formatPercentValue(nodeUtilization),healthy:isMetricHealthy(nodeUtilization)},
     {label:'Pod utilization',value:formatPercentValue(podUtilization),healthy:isMetricHealthy(podUtilization)},
     {label:'Pod restarts',value:String(restartTotal),healthy:restartTotal===0},
   ];
@@ -620,8 +620,8 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
         <PercentTile title="Cluster health" value={clusterHealthPercent} icon={<ShieldCheck size={20}/>} healthy={isClusterHealthy} />
         <PercentTile title="Node health" value={nodeHealthPercent} icon={<Server size={20}/>} healthy={!hasNodeIssues} />
         <PercentTile title="Pod health" value={podHealthPercent} icon={<Boxes size={20}/>} healthy={!hasPodIssues} />
-        <PercentTile title="Cluster CPU utilization" value={clusterUtilization} icon={<Gauge size={20}/>} healthy={isMetricHealthy(clusterUtilization)} />
-        <PercentTile title="Node CPU utilization" value={nodeUtilization} icon={<BarChart3 size={20}/>} healthy={isMetricHealthy(nodeUtilization)} />
+        <PercentTile title="Cluster utilization cpu %" value={clusterUtilization} icon={<Gauge size={20}/>} healthy={isMetricHealthy(clusterUtilization)} />
+        <PercentTile title="Node utilization cpu %" value={nodeUtilization} icon={<BarChart3 size={20}/>} healthy={isMetricHealthy(nodeUtilization)} />
         <PercentTile title="Pod utilization" value={podUtilization} icon={<Activity size={20}/>} healthy={isMetricHealthy(podUtilization)} />
       </div>
 
@@ -642,7 +642,7 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
           <MetricCard title="Cluster health" value={`${clusterHealthPercent}%`} healthy={isClusterHealthy} />
           <MetricCard title="Node health" value={`${nodeHealthPercent}%`} healthy={!hasNodeIssues} />
           <MetricCard title="Pod health" value={`${podHealthPercent}%`} healthy={!hasPodIssues} />
-          <MetricCard title="Cluster CPU utilization" value={formatPercentValue(clusterUtilization)} healthy={isMetricHealthy(clusterUtilization)} />
+          <MetricCard title="Cluster utilization cpu %" value={formatPercentValue(clusterUtilization)} healthy={isMetricHealthy(clusterUtilization)} />
         </div>
       </MonitoringGroup>
 

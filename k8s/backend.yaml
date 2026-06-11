@@ -16,7 +16,7 @@ spec:
       serviceAccountName: k8s-ai-sa
       containers:
       - name: backend
-        image: docker.io/rahultipledocker/k8s-ai-backend:latest
+        image: docker.io/rahultipledocker/k8s-ai-backend:cae73143c795bed8ae2b228e2565fc8a0dcc0579
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
@@ -33,6 +33,22 @@ spec:
           value: "true"
         - name: KUBECTL_TERMINAL_TIMEOUT_SECONDS
           value: "30"
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 6
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 8000
+          initialDelaySeconds: 20
+          periodSeconds: 20
+          timeoutSeconds: 3
+          failureThreshold: 3
         resources:
           requests:
             cpu: 100m

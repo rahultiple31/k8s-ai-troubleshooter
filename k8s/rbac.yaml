@@ -10,7 +10,7 @@ metadata:
   name: k8s-ai-readonly
 rules:
 - apiGroups: [""]
-  resources: ["pods", "pods/log", "nodes", "events", "services", "endpoints", "persistentvolumeclaims", "persistentvolumes", "namespaces", "configmaps", "secrets"]
+  resources: ["pods", "pods/log", "pods/status", "nodes", "nodes/status", "events", "services", "endpoints", "persistentvolumeclaims", "persistentvolumes", "namespaces", "configmaps", "secrets"]
   verbs: ["get", "list", "watch", "create", "update", "patch"]
 - apiGroups: ["apps"]
   resources: ["deployments", "replicasets", "daemonsets", "statefulsets"]
@@ -18,6 +18,9 @@ rules:
 - apiGroups: ["networking.k8s.io"]
   resources: ["ingresses", "networkpolicies"]
   verbs: ["get", "list", "watch", "create", "update", "patch"]
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses"]
+  verbs: ["get", "list", "watch"]
 - apiGroups: ["batch"]
   resources: ["jobs", "cronjobs"]
   verbs: ["get", "list", "watch", "create", "update", "patch"]
