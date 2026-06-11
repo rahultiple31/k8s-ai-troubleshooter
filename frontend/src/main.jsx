@@ -753,23 +753,25 @@ function PercentTile({title,value,icon,healthy=true}){
 }
 
 function MetricCard({title,value,healthy=true}){
-  return <div className={`metric-card ${healthy ? 'healthy' : 'has-issue'}`}>
+  const stateClass=healthy === null ? 'unavailable' : healthy ? 'healthy' : 'has-issue';
+  return <div className={`metric-card ${stateClass}`}>
     <span>{title}</span>
     <strong>{value}</strong>
-    {healthy ? <CheckCircle2 size={15}/> : <AlertTriangle size={15}/>}
+    {healthy === true ? <CheckCircle2 size={15}/> : <AlertTriangle size={15}/>}
   </div>;
 }
 
 function MetricList({title,rows,empty}){
   return <div className="monitor-section">
     <span>{title}</span>
-    {rows.map((row,index)=>
-      <div className={`metric-list-row ${row.healthy === false ? 'has-issue' : 'healthy'}`} key={`${row.label}-${index}`}>
+    {rows.map((row,index)=>{
+      const stateClass=row.healthy === null ? 'unavailable' : row.healthy === false ? 'has-issue' : 'healthy';
+      return <div className={`metric-list-row ${stateClass}`} key={`${row.label}-${index}`}>
         <strong>{row.label}</strong>
         <small>{row.value}</small>
-        {row.healthy === false ? <AlertTriangle size={15}/> : <CheckCircle2 size={15}/>}
-      </div>
-    )}
+        {row.healthy === true ? <CheckCircle2 size={15}/> : <AlertTriangle size={15}/>}
+      </div>;
+    })}
     {!rows.length && <div className="monitor-empty">{empty}</div>}
   </div>;
 }
@@ -854,7 +856,10 @@ function formatPercentValue(value){
 }
 
 function isMetricHealthy(value){
-  return Number.isFinite(value) && value<85;
+  if(!Number.isFinite(value)){
+    return null;
+  }
+  return value<85;
 }
 
 function TerminalPanel({namespace,podName,onAskFix}){
