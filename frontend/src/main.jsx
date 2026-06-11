@@ -10,7 +10,6 @@ import {
   ChevronDown,
   ChevronRight,
   Database,
-  FileText,
   Gauge,
   GitBranch,
   History,
@@ -481,10 +480,7 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
   const [loadingMetrics,setLoadingMetrics]=useState(false);
   const [openSections,setOpenSections]=useState({
     cluster:true,
-    metrics:true,
     pod:true,
-    logs:true,
-    events:true,
     networking:false,
   });
 
@@ -518,11 +514,8 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
       .filter(event=>event.object_kind==='Pod' && event.object_name)
       .map(event=>`${event.namespace}/${event.object_name}`)
   );
-  const podWarningTotal=sumValues(podWarningCounts);
   const podLogCounts=countByKey(logAlerts.map(alert=>`${alert.namespace}/${alert.pod}`));
   const nodeCpuRows=prometheusRows(cluster.node_cpu,['instance']).slice(0,8);
-  const nodeMemoryRows=prometheusRows(cluster.node_memory,['instance']).slice(0,8);
-  const nodeStorageRows=prometheusRows(cluster.node_storage,['instance']).slice(0,8);
   const podCpuRows=prometheusRows(cluster.pod_cpu,['namespace','pod']).slice(0,8);
   const podMemoryRows=prometheusRows(cluster.pod_memory,['namespace','pod']).slice(0,8);
   const podStorageRows=prometheusRows(cluster.pod_storage,['namespace','pod']).slice(0,8);
@@ -535,10 +528,7 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
     prometheusRows(cluster.https_errors_status,['namespace','service','status']),
   ).slice(0,8);
   const readyNodes=Math.max((overview.nodes || 0) - (overview.not_ready_nodes || []).length,0);
-  const restartTotal=pods.reduce((sum,pod)=>sum + (Number(pod.restarts) || 0),0);
   const clusterCpu=prometheusScalar(cluster.cluster_cpu);
-  const clusterMemory=prometheusScalar(cluster.cluster_memory);
-  const clusterStorage=prometheusScalar(cluster.cluster_storage);
   const nodeHealthPercent=percentage(readyNodes,overview.nodes || 0);
   const healthyPodCount=pods.filter(pod=>
     (pod.phase==='Running' || pod.phase==='Succeeded') &&
@@ -558,15 +548,6 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
   const clusterUtilization=clusterCpu;
   const nodeUtilization=averageRows(nodeCpuRows);
   const podUtilization=averageRows(podCpuRows,podMemoryRows,podStorageRows);
-  const metricsSummaryRows=[
-    {label:'Cluster CPU',value:formatPercentValue(clusterCpu),healthy:isMetricHealthy(clusterCpu)},
-    {label:'Cluster RAM',value:formatPercentValue(clusterMemory),healthy:isMetricHealthy(clusterMemory)},
-    {label:'Cluster storage',value:formatPercentValue(clusterStorage),healthy:isMetricHealthy(clusterStorage)},
-    {label:'Cluster utilization cpu %',value:formatPercentValue(clusterUtilization),healthy:isMetricHealthy(clusterUtilization)},
-    {label:'Node utilization cpu %',value:formatPercentValue(nodeUtilization),healthy:isMetricHealthy(nodeUtilization)},
-    {label:'Pod utilization',value:formatPercentValue(podUtilization),healthy:isMetricHealthy(podUtilization)},
-    {label:'Pod restarts',value:String(restartTotal),healthy:restartTotal===0},
-  ];
   const podHealthRows=pods.slice(0,8).map(pod=>({
     label:`${pod.namespace}/${pod.name}`,
     value:[
@@ -581,16 +562,6 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
     label:`${service.namespace}/${service.name}`,
     value:`${service.type}${service.ports?.length ? ` : ${service.ports.map(port=>port.port).join(', ')}` : ''}`,
     healthy:true,
-  }));
-  const logRows=logAlerts.slice(0,8).map(alert=>({
-    label:`${alert.namespace}/${alert.pod}`,
-    value:`${alert.container} / ${alert.reason}: ${alert.snippet}`,
-    healthy:false,
-  }));
-  const eventRows=events.slice(0,8).map(event=>({
-    label:`${event.namespace}/${event.reason}`,
-    value:`${event.object_kind || 'object'} ${event.object_name || '-'} / count ${event.count}`,
-    healthy:(event.type || '').toLowerCase()!=='warning',
   }));
 
   function toggleSection(section){
@@ -647,22 +618,6 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
       </MonitoringGroup>
 
       <MonitoringGroup
-        title="Metrics"
-        icon={<BarChart3 size={19}/>}
-        open={openSections.metrics}
-        onToggle={()=>toggleSection('metrics')}
-        badges={[`${formatPercentValue(clusterUtilization)} cluster cpu`, `${formatPercentValue(nodeUtilization)} node cpu`, `${formatPercentValue(podUtilization)} pod`]}
-        healthy={isMetricHealthy(clusterUtilization) && isMetricHealthy(nodeUtilization) && isMetricHealthy(podUtilization)}
-      >
-        <div className="monitor-columns four">
-          <MetricList title="Utilization summary" rows={metricsSummaryRows} empty="No cluster metrics" />
-          <MetricList title="CPU use%" rows={nodeCpuRows.map(row=>({label:row.label,value:formatPercentValue(row.value),healthy:isMetricHealthy(row.value)}))} empty="No node CPU data" />
-          <MetricList title="RAM use%" rows={nodeMemoryRows.map(row=>({label:row.label,value:formatPercentValue(row.value),healthy:isMetricHealthy(row.value)}))} empty="No node RAM data" />
-          <MetricList title="Storage use%" rows={nodeStorageRows.map(row=>({label:row.label,value:formatPercentValue(row.value),healthy:isMetricHealthy(row.value)}))} empty="No node storage data" />
-        </div>
-      </MonitoringGroup>
-
-      <MonitoringGroup
         title="Pod"
         icon={<Boxes size={19}/>}
         open={openSections.pod}
@@ -675,34 +630,6 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
           <MetricList title="RAM use%" rows={podMemoryRows.map(row=>({label:row.label,value:formatPercentValue(row.value),healthy:isMetricHealthy(row.value)}))} empty="No pod RAM data" />
           <MetricList title="Storage use%" rows={podStorageRows.map(row=>({label:row.label,value:formatPercentValue(row.value),healthy:isMetricHealthy(row.value)}))} empty="No pod storage data" />
           <MetricList title="Pod health" rows={podHealthRows} empty="No pod health data" />
-        </div>
-      </MonitoringGroup>
-
-      <MonitoringGroup
-        title="Collect logs"
-        icon={<FileText size={19}/>}
-        open={openSections.logs}
-        onToggle={()=>toggleSection('logs')}
-        badges={[`${logAlerts.length} alert`, `${logHealthPercent}% clear`]}
-        healthy={!hasLogIssues}
-      >
-        <div className="monitor-columns two">
-          <MetricCard title="Log alert count" value={String(logAlerts.length)} healthy={!hasLogIssues} />
-          <MetricList title="Log findings" rows={logRows} empty="No error logs collected from unhealthy pods" />
-        </div>
-      </MonitoringGroup>
-
-      <MonitoringGroup
-        title="Events"
-        icon={<History size={19}/>}
-        open={openSections.events}
-        onToggle={()=>toggleSection('events')}
-        badges={[`${events.length} event`, `${warningEvents.length} warning`, `${eventHealthPercent}% healthy`]}
-        healthy={!hasEventIssues}
-      >
-        <div className="monitor-columns two">
-          <MetricCard title="Event health" value={`${eventHealthPercent}%`} healthy={!hasEventIssues} />
-          <MetricList title="Recent events" rows={eventRows} empty="No events found" />
         </div>
       </MonitoringGroup>
 
@@ -828,10 +755,6 @@ function countByKey(items){
     counts.set(key,(counts.get(key) || 0) + 1);
     return counts;
   },new Map());
-}
-
-function sumValues(map){
-  return Array.from(map.values()).reduce((sum,value)=>sum + value,0);
 }
 
 function combineRows(...rowGroups){
