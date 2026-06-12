@@ -486,7 +486,6 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
   const [metrics,setMetrics]=useState({cluster:null,logAlerts:[]});
   const [loadingMetrics,setLoadingMetrics]=useState(false);
   const [openSections,setOpenSections]=useState({
-    cluster:true,
     node:true,
     pod:true,
     networking:false,
@@ -544,8 +543,6 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
   ).slice(0,8);
   const readyNodes=Math.max((overview.nodes || 0) - (overview.not_ready_nodes || []).length,0);
   const clusterCpu=prometheusScalar(cluster.cluster_cpu);
-  const clusterMemory=prometheusScalar(cluster.cluster_memory);
-  const clusterStorage=prometheusScalar(cluster.cluster_storage);
   const nodeHealthPercent=percentage(readyNodes,overview.nodes || 0);
   const healthyPodCount=pods.filter(pod=>
     (pod.phase==='Running' || pod.phase==='Succeeded') &&
@@ -646,31 +643,6 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
       </div>
 
       <MonitoringGroup
-        title="Cluster"
-        icon={<ShieldCheck size={19}/>}
-        open={openSections.cluster}
-        onToggle={()=>toggleSection('cluster')}
-        badges={[
-          `${overview.nodes ?? '-'} node`,
-          `${pods.length} pod`,
-          `${clusterHealthPercent}% health`,
-          `${formatPercentValue(clusterUtilization)} cpu`,
-        ]}
-        healthy={isClusterHealthy}
-      >
-        <div className="monitor-columns four">
-          <MetricCard title="Cluster health" value={`${clusterHealthPercent}%`} healthy={isClusterHealthy} />
-          <MetricCard title="Node health" value={`${nodeHealthPercent}%`} healthy={!hasNodeIssues} />
-          <MetricCard title="Pod health" value={`${podHealthPercent}%`} healthy={!hasPodIssues} />
-          <MetricCard title="Cluster utilization cpu %" value={formatPercentValue(clusterUtilization)} healthy={isMetricHealthy(clusterUtilization)} />
-          <MetricCard title="Cluster utilization ram %" value={formatPercentValue(clusterMemory)} healthy={isMetricHealthy(clusterMemory)} />
-          <MetricCard title="Cluster utilization storage %" value={formatPercentValue(clusterStorage)} healthy={isMetricHealthy(clusterStorage)} />
-          <MetricCard title="Prometheus source" value={cluster.prometheus?.active_url ? hostnameLabel(cluster.prometheus.active_url) : 'No source'} healthy={cluster.prometheus?.active_url ? true : null} />
-          <MetricCard title="Metric errors" value={String(Object.keys(cluster.errors || {}).length)} healthy={Object.keys(cluster.errors || {}).length ? false : true} />
-        </div>
-      </MonitoringGroup>
-
-      <MonitoringGroup
         title="Node"
         icon={<Server size={19}/>}
         open={openSections.node}
@@ -758,15 +730,6 @@ function PercentTile({title,value,icon,healthy=true}){
     <div className="percent-bar" aria-hidden="true">
       <span style={{width:`${bounded}%`}} />
     </div>
-  </div>;
-}
-
-function MetricCard({title,value,healthy=true}){
-  const stateClass=healthy === null ? 'unavailable' : healthy ? 'healthy' : 'has-issue';
-  return <div className={`metric-card ${stateClass}`}>
-    <span>{title}</span>
-    <strong>{value}</strong>
-    {healthy === true ? <CheckCircle2 size={15}/> : <AlertTriangle size={15}/>}
   </div>;
 }
 

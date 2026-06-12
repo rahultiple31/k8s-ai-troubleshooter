@@ -1296,7 +1296,7 @@ button{
   grid-template-columns:repeat(4,minmax(0,1fr));
 }
 
-.metric-card,.metric-list-row{
+.metric-list-row{
   min-width:0;
   border:1px solid #dbe7ed;
   border-radius:7px;
@@ -1306,18 +1306,12 @@ button{
   gap:6px;
 }
 
-.metric-card{
-  min-height:62px;
-  grid-template-columns:minmax(0,1fr) max-content 16px;
-  padding:10px;
-}
-
-.metric-card:hover,.metric-list-row:hover{
+.metric-list-row:hover{
   border-color:#bed1dc;
   background:#fbfdfe;
 }
 
-.metric-card span,.monitor-section>span{
+.monitor-section>span{
   color:var(--muted);
   font-size:10px;
   font-weight:900;
@@ -1326,21 +1320,11 @@ button{
   overflow-wrap:anywhere;
 }
 
-.metric-card strong{
-  min-width:0;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-  color:#0f7f6d;
-  font-size:19px;
-  font-weight:900;
-}
-
-.metric-card.has-issue strong,.metric-card.has-issue svg,.metric-list-row.has-issue svg{
+.metric-list-row.has-issue svg{
   color:var(--red);
 }
 
-.metric-card.unavailable strong,.metric-card.unavailable svg,.metric-list-row.unavailable svg{
+.metric-list-row.unavailable svg{
   color:#657684;
 }
 
@@ -1375,11 +1359,11 @@ button{
   text-align:right;
 }
 
-.metric-card svg,.metric-list-row.healthy svg{
+.metric-list-row.healthy svg{
   color:var(--teal);
 }
 
-.metric-card.unavailable,.metric-list-row.unavailable{
+.metric-list-row.unavailable{
   background:#f7fafb;
 }
 
