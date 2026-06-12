@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, HTTPException
 from app.services.k8s_client import KubernetesService
 from app.services.prometheus import PrometheusService
@@ -219,4 +221,55 @@ async def coredns_dashboard():
 
 @router.get("/prometheus/cluster-dashboard")
 async def cluster_dashboard():
-    return await PrometheusService().cluster_dashboard()
+    fallback = {}
+    fallback_error = None
+    try:
+        fallback = get_kubernetes_service().get_metrics_summary()
+    except Exception as exc:
+        fallback_error = str(exc)
+
+    try:
+        dashboard = await asyncio.wait_for(PrometheusService().cluster_dashboard(), timeout=8)
+    except Exception as exc:
+        dashboard = {key: value for key, value in fallback.items() if has_metric_rows(value)}
+        dashboard["errors"] = {"prometheus": str(exc)}
+        if fallback_error:
+            dashboard["errors"]["kubernetes_metrics"] = fallback_error
+        dashboard["fallback"] = fallback_summary(fallback, dashboard)
+        return dashboard
+
+    if fallback_error:
+        dashboard.setdefault("errors", {})["kubernetes_metrics"] = fallback_error
+
+    for key, value in fallback.items():
+        if not has_metric_rows(dashboard.get(key)) and has_metric_rows(value):
+            dashboard[key] = value
+
+    dashboard["fallback"] = fallback_summary(fallback, dashboard)
+    return dashboard
+
+
+def has_metric_rows(response):
+    if not isinstance(response, dict):
+        return False
+    return bool(response.get("data", {}).get("result"))
+
+
+def fallback_summary(fallback, dashboard):
+    used = [
+        key
+        for key, value in fallback.items()
+        if dashboard.get(key) is value
+    ]
+    sources = set()
+    for key in used:
+        rows = fallback.get(key, {}).get("data", {}).get("result", [])
+        for row in rows:
+            metric = row.get("metric", {}) if isinstance(row, dict) else {}
+            source = metric.get("source") if isinstance(metric, dict) else None
+            if source:
+                sources.add(source)
+    return {
+        "source": ", ".join(sorted(sources)) if sources else "none",
+        "used": used,
+    }

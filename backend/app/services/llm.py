@@ -29,6 +29,24 @@ KUBERNETES_DOC_SOURCES = [
     },
 ]
 
+POD_ERROR_PLAYBOOK = [
+    "ImagePullBackOff / ErrImagePull: check image name, tag, registry auth, imagePullSecrets, network, and permissions.",
+    "CrashLoopBackOff / InitCrashLoopBackOff: check current logs, previous logs, command, env, config, dependencies, and init container output.",
+    "Pending: check CPU/RAM requests, node taints, node selectors, PVC binding, and available worker nodes.",
+    "OOMKilled / Evicted: check memory limits, node pressure, resource requests, and application memory usage.",
+    "ContainerCreating / CreateContainerConfigError / CreateContainerError / RunContainerError: check Secret, ConfigMap, volume mounts, CNI, runtime, entrypoint, scripts, and file permissions.",
+    "Completed: confirm whether the workload is a Job/CronJob or one-time task before recommending changes.",
+]
+
+POD_TROUBLESHOOTING_FLOW = [
+    "Check pod status and restarts.",
+    "Describe the pod and read warning events.",
+    "Check current logs.",
+    "Check previous logs when a container restarted.",
+    "Review namespace events sorted by time.",
+    "Verify resources, volumes, Secrets, ConfigMaps, networking, and node pressure.",
+]
+
 class LLMService:
     def __init__(self):
         self.api_key = os.getenv("OPENAI_API_KEY")
@@ -67,6 +85,8 @@ class LLMService:
                             f"User question:\n{question}\n\n"
                             f"Live Kubernetes findings:\n{rule_result}\n\n"
                             f"Relevant Kubernetes docs:\n{sources}\n\n"
+                            f"Pod error playbook:\n{POD_ERROR_PLAYBOOK}\n\n"
+                            f"Troubleshooting flow:\n{POD_TROUBLESHOOTING_FLOW}\n\n"
                             "Important command rules:\n"
                             "- Use only the exact kubectl commands from Live Kubernetes findings.commands.\n"
                             "- Do not output placeholder commands such as <pod>, <namespace>, <node>, or <pvc>.\n"
@@ -107,6 +127,7 @@ class LLMService:
     def _fallback_answer(self, question: str, result: dict, sources: list):
         commands = "\n".join(f"- `{command}`" for command in result.get("commands", []))
         source_lines = "\n".join(f"- {source['title']}: {source['url']}" for source in sources)
+        playbook_match = self._select_playbook_line(question, result)
         is_healthy = "healthy" in result.get("reason", "").lower() and result.get("confidence", 0) >= 95
         fix_steps = (
             "No fix is required. Keep these commands only for verification or future troubleshooting."
@@ -122,7 +143,8 @@ class LLMService:
             f"### What is happening\n"
             f"{result.get('reason', 'The cluster returned findings for this request.')}\n\n"
             f"### Most likely root cause\n"
-            f"{result.get('fix', 'Review pod events, logs, node status, and storage status to narrow the issue.')}\n\n"
+            f"{result.get('fix', 'Review pod events, logs, node status, and storage status to narrow the issue.')}\n"
+            f"{playbook_match}\n\n"
             f"### Fix steps\n"
             f"{fix_steps}\n\n"
             f"### Commands to verify\n"
@@ -132,3 +154,11 @@ class LLMService:
             f"### Sources\n"
             f"{source_lines}"
         )
+
+    def _select_playbook_line(self, question: str, result: dict):
+        text = f"{question} {result}".lower()
+        for line in POD_ERROR_PLAYBOOK:
+            keywords = line.split(":")[0].lower().replace("/", " ").split()
+            if any(keyword in text for keyword in keywords):
+                return line
+        return "Follow the standard flow: check pod status, describe output, logs, previous logs, events, then resources/configuration."

@@ -29,6 +29,53 @@ import './style.css';
 
 const API = import.meta.env.VITE_API_URL || '/api';
 
+const POD_ERROR_PROMPTS=[
+  'Fix ImagePullBackOff or ErrImagePull registry issue',
+  'Fix CrashLoopBackOff or InitCrashLoopBackOff',
+  'Fix Pending pod caused by CPU, RAM, taints, selectors, or PVC',
+  'Fix OOMKilled memory limit or memory leak issue',
+  'Fix ContainerCreating stuck on volume, CNI, image, secret, or ConfigMap',
+  'Fix CreateContainerConfigError from missing Secret or ConfigMap',
+  'Fix CreateContainerError from command, mount path, or permissions',
+  'Fix RunContainerError from entrypoint, script, or file permission issue',
+  'Fix Evicted pod caused by node resource pressure',
+  'Explain Completed pod or Job status',
+];
+
+function podDebugCommands(namespace='default',podName=''){
+  const ns=namespace || 'default';
+  const commands=[
+    `kubectl get pods -n ${ns} -o wide`,
+    `kubectl get events -n ${ns} --sort-by=.lastTimestamp`,
+    `kubectl get pvc -n ${ns}`,
+    `kubectl get secrets,configmaps -n ${ns}`,
+  ];
+  if(!podName) return commands;
+  return [
+    commands[0],
+    `kubectl describe pod ${podName} -n ${ns}`,
+    `kubectl logs ${podName} -n ${ns} --tail=200`,
+    `kubectl logs ${podName} -n ${ns} --previous --tail=200`,
+    commands[1],
+    commands[2],
+  ];
+}
+
+function buildPlaybookPrompt(issue, namespace, podName){
+  const commands=podDebugCommands(namespace,podName).join('\n');
+  return [
+    buildFixPrompt(issue,namespace,podName),
+    'Use this Kubernetes pod-error playbook:',
+    '- ImagePullBackOff / ErrImagePull: check image name, tag, registry auth, imagePullSecrets, network, and permissions.',
+    '- CrashLoopBackOff / InitCrashLoopBackOff: check logs, previous logs, command, env, config, dependencies, and init container output.',
+    '- Pending: check CPU/RAM requests, node taints, node selectors, PVC binding, and available worker nodes.',
+    '- OOMKilled / Evicted: check memory limits, node pressure, resource requests, and application memory usage.',
+    '- ContainerCreating / CreateContainerConfigError / CreateContainerError / RunContainerError: check Secret, ConfigMap, volume mounts, CNI, runtime, entrypoint, scripts, and file permissions.',
+    'Preferred debug commands:',
+    commands,
+  ].join('\n');
+}
+
 async function fetchClusterJson(path){
   const response=await fetch(`${API}${path}`);
   if(!response.ok){
@@ -370,12 +417,7 @@ function ChatPanel({messages,loading,namespace,podName,question,setQuestion,upda
   const endRef=useRef(null);
   const hasUserMessage=messages.some(message=>message.role==='user');
   const visibleMessages=hasUserMessage ? messages.filter(message=>message.role==='user' || message.content?.ai_explanation || message.content?.error) : [];
-  const promptIdeas=[
-    'Fix CrashLoopBackOff for this pod',
-    'Fix ImagePullBackOff or registry secret issue',
-    'Fix Pending pod caused by PVC or storage',
-    'Fix service or endpoint connectivity',
-  ];
+  const promptIdeas=POD_ERROR_PROMPTS;
 
   useEffect(()=>{
     endRef.current?.scrollIntoView({behavior:'smooth', block:'end'});
@@ -404,7 +446,7 @@ function ChatPanel({messages,loading,namespace,podName,question,setQuestion,upda
         <p>Select a pod or type the namespace and pod name. I will return the root cause, exact fix steps, and copy-paste kubectl commands for that Kubernetes problem.</p>
         <div className="prompt-suggestions">
           {promptIdeas.map(prompt=>
-            <button key={prompt} type="button" onClick={()=>setQuestion(buildFixPrompt(prompt, namespace, podName))}>{prompt}</button>
+            <button key={prompt} type="button" onClick={()=>setQuestion(buildPlaybookPrompt(prompt, namespace, podName))}>{prompt}</button>
           )}
         </div>
       </div>}
@@ -426,7 +468,7 @@ function ChatPanel({messages,loading,namespace,podName,question,setQuestion,upda
       </div>
       <div className="composer-suggestions">
         {promptIdeas.map(prompt=>
-          <button key={prompt} type="button" onClick={()=>setQuestion(buildFixPrompt(prompt, namespace, podName))}>{prompt}</button>
+          <button key={prompt} type="button" onClick={()=>setQuestion(buildPlaybookPrompt(prompt, namespace, podName))}>{prompt}</button>
         )}
       </div>
       <div className="prompt-row">
@@ -735,7 +777,7 @@ function prometheusRows(response,labels=['instance','pod','namespace','job']){
       label:metricLabel(metric,labels),
       value:promNumber(item?.value?.[1]),
     };
-  }).sort((a,b)=>b.value-a.value);
+  }).filter(row=>Number.isFinite(row.value)).sort((a,b)=>b.value-a.value);
 }
 
 function prometheusScalar(response){
@@ -823,6 +865,10 @@ function combineRows(...rowGroups){
     .sort((a,b)=>b.value-a.value);
 }
 
+function uniqueItems(items){
+  return Array.from(new Set(items.filter(Boolean)));
+}
+
 function formatMetricValue(value){
   if(!Number.isFinite(value)) return '0';
   if(value>=100) return String(Math.round(value));
@@ -870,12 +916,11 @@ function TerminalPanel({namespace,podName,onAskFix}){
     },
   ]);
   const outputRef=useRef(null);
-  const quickCommands=[
-    `kubectl get pods -n ${namespace || 'default'} -o wide`,
-    podName ? `kubectl describe pod ${podName} -n ${namespace || 'default'}` : `kubectl get events -n ${namespace || 'default'} --sort-by=.lastTimestamp`,
-    podName ? `kubectl logs ${podName} -n ${namespace || 'default'} --tail=200` : 'kubectl get nodes -o wide',
-    `kubectl get events -n ${namespace || 'default'} --sort-by=.lastTimestamp`,
-  ];
+  const quickCommands=uniqueItems([
+    ...podDebugCommands(namespace,podName),
+    'kubectl get nodes -o wide',
+    ...(podName ? [`kubectl exec -it ${podName} -n ${namespace || 'default'} -- /bin/sh`] : []),
+  ]);
 
   useEffect(()=>{
     outputRef.current?.scrollIntoView({behavior:'smooth', block:'end'});
