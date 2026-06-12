@@ -240,10 +240,17 @@ function App(){
           <h2>{viewTitle(activeView)}</h2>
           {refreshError && <p className="refresh-error">{refreshError}</p>}
         </div>
-        <button className="icon-button" onClick={load} disabled={loadingCluster} title="Refresh cluster data">
-          <RefreshCw className={loadingCluster ? 'spin' : ''} size={18}/>
-          {loadingCluster ? 'Refreshing' : 'Refresh'}
-        </button>
+        <div className="topbar-actions">
+          <div className="status-strip" aria-label="Cluster status">
+            <span className={syncOk ? 'good' : 'bad'}>{syncOk ? 'Healthy' : 'Issue'}</span>
+            <span>{overview.nodes ?? '-'} nodes</span>
+            <span>{overview.pods ?? pods.length ?? '-'} pods</span>
+          </div>
+          <button className="icon-button" onClick={load} disabled={loadingCluster} title="Refresh cluster data">
+            <RefreshCw className={loadingCluster ? 'spin' : ''} size={18}/>
+            {loadingCluster ? 'Refreshing' : 'Refresh'}
+          </button>
+        </div>
       </header>
 
       <section className={`content-grid ${activeView==='terminal' ? 'terminal-split' : activeView!=='dashboard' ? 'single' : ''}`}>
@@ -494,7 +501,7 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
         fetchClusterJson('/cluster/log-alerts'),
       ]);
       setMetrics(current=>({
-        cluster:clusterResult.status==='fulfilled' ? clusterResult.value : current.cluster,
+        cluster:clusterResult.status==='fulfilled' ? stripMetricImageData(clusterResult.value) : current.cluster,
         logAlerts:logResult.status==='fulfilled' ? logResult.value : current.logAlerts,
         error:clusterResult.status==='rejected' ? clusterResult.reason?.message || 'Prometheus metrics unavailable' : '',
       }));
@@ -779,17 +786,47 @@ function MetricList({title,rows,empty}){
 }
 
 function prometheusRows(response,labels=['instance','pod','namespace','job']){
-  return (response?.data?.result || []).map(item=>{
-    const metric=item.metric || {};
+  return (Array.isArray(response?.data?.result) ? response.data.result : []).map(item=>{
+    const metric=stripImageLabels(item?.metric || {});
     return {
       label:metricLabel(metric,labels),
-      value:promNumber(item.value?.[1]),
+      value:promNumber(item?.value?.[1]),
     };
   }).sort((a,b)=>b.value-a.value);
 }
 
 function prometheusScalar(response){
   return promNumber(response?.data?.result?.[0]?.value?.[1]);
+}
+
+function stripMetricImageData(payload){
+  if(!payload || typeof payload!=='object'){
+    return payload;
+  }
+  const copy=Array.isArray(payload) ? [...payload] : {...payload};
+  Object.entries(copy).forEach(([key,value])=>{
+    if(Array.isArray(value?.data?.result)){
+      copy[key]={
+        ...value,
+        data:{
+          ...value.data,
+          result:value.data.result.map(item=>({
+            ...(item || {}),
+            metric:stripImageLabels(item?.metric || {}),
+          })),
+        },
+      };
+    }
+  });
+  return copy;
+}
+
+function stripImageLabels(metric){
+  const cleanMetric={...(metric || {})};
+  delete cleanMetric.image;
+  delete cleanMetric.image_id;
+  delete cleanMetric.container_id;
+  return cleanMetric;
 }
 
 function promNumber(value){
