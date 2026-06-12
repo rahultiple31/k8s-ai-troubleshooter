@@ -45,12 +45,13 @@ class PrometheusService:
         raise RuntimeError("; ".join(errors) or "Prometheus request failed")
 
     async def query(self, promql: str):
-        return await self.request("/api/v1/query", {"query": promql})
+        response = await self.request("/api/v1/query", {"query": promql})
+        return self.strip_image_labels(response)
 
     async def query_range(self, promql: str, minutes: int = 60, step: str = "60s"):
         end = datetime.now(timezone.utc)
         start = end - timedelta(minutes=minutes)
-        return await self.request(
+        response = await self.request(
             "/api/v1/query_range",
             {
                 "query": promql,
@@ -59,6 +60,18 @@ class PrometheusService:
                 "step": step,
             },
         )
+        return self.strip_image_labels(response)
+
+    def strip_image_labels(self, response):
+        if not isinstance(response, dict):
+            return response
+        for item in response.get("data", {}).get("result", []):
+            metric = item.get("metric") if isinstance(item, dict) else None
+            if not isinstance(metric, dict):
+                continue
+            for label in ("image", "image_id", "container_id"):
+                metric.pop(label, None)
+        return response
 
     async def query_first(self, promql_options):
         last_response = None
