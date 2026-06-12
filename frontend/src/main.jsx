@@ -567,20 +567,20 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
   const nodeCpuRows=prometheusRows(cluster.node_cpu,['instance','node']).slice(0,8);
   const nodeMemoryRows=prometheusRows(cluster.node_memory,['instance','node']).slice(0,8);
   const nodeStorageRows=prometheusRows(cluster.node_storage,['instance','node']).slice(0,8);
-  const podCpuRows=prometheusRows(cluster.pod_cpu,['namespace','pod']).slice(0,8);
-  const podMemoryRows=prometheusRows(cluster.pod_memory,['namespace','pod']).slice(0,8);
-  const podStorageRows=prometheusRows(cluster.pod_storage,['namespace','pod']).slice(0,8);
-  const podCpuUsageRows=prometheusRows(cluster.pod_cpu_usage,['namespace','pod']).slice(0,8);
-  const podMemoryUsageRows=prometheusRows(cluster.pod_memory_usage,['namespace','pod']).slice(0,8);
-  const podStorageUsageRows=prometheusRows(cluster.pod_storage_usage,['namespace','pod']).slice(0,8);
+  const podCpuRows=prometheusRows(cluster.pod_cpu,['namespace','pod']);
+  const podMemoryRows=prometheusRows(cluster.pod_memory,['namespace','pod']);
+  const podStorageRows=prometheusRows(cluster.pod_storage,['namespace','pod']);
+  const podCpuUsageRows=prometheusRows(cluster.pod_cpu_usage,['namespace','pod']);
+  const podMemoryUsageRows=prometheusRows(cluster.pod_memory_usage,['namespace','pod']);
+  const podStorageUsageRows=prometheusRows(cluster.pod_storage_usage,['namespace','pod']);
   const httpErrorRows=combineRows(
     prometheusRows(cluster.http_errors_code,['namespace','service','code']),
     prometheusRows(cluster.http_errors_status,['namespace','service','status']),
-  ).slice(0,8);
+  );
   const httpsErrorRows=combineRows(
     prometheusRows(cluster.https_errors_code,['namespace','service','code']),
     prometheusRows(cluster.https_errors_status,['namespace','service','status']),
-  ).slice(0,8);
+  );
   const readyNodes=Math.max((overview.nodes || 0) - (overview.not_ready_nodes || []).length,0);
   const clusterCpu=prometheusScalar(cluster.cluster_cpu);
   const nodeHealthPercent=percentage(readyNodes,overview.nodes || 0);
@@ -629,7 +629,7 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
     value:formatBytes(row.value),
     healthy:null,
   })));
-  const podHealthRows=pods.slice(0,8).map(pod=>({
+  const podHealthRows=pods.map(pod=>({
     label:`${pod.namespace}/${pod.name}`,
     value:[
       pod.phase,
@@ -639,7 +639,16 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
     ].join(' / '),
     healthy:(pod.phase==='Running' || pod.phase==='Succeeded') && pod.restarts===0 && !(podWarningCounts.get(`${pod.namespace}/${pod.name}`) || 0) && !(podLogCounts.get(`${pod.namespace}/${pod.name}`) || 0),
   }));
-  const serviceRows=services.slice(0,8).map(service=>({
+  const podNetworkRows=pods.map(pod=>({
+    label:`${pod.namespace}/${pod.name}`,
+    value:[
+      pod.pod_ip || 'no pod IP',
+      pod.node || 'unscheduled',
+      pod.host_ip ? `host ${pod.host_ip}` : '',
+    ].filter(Boolean).join(' / '),
+    healthy:pod.phase==='Running' || pod.phase==='Succeeded',
+  }));
+  const serviceRows=services.map(service=>({
     label:`${service.namespace}/${service.name}`,
     value:`${service.type}${service.ports?.length ? ` : ${service.ports.map(port=>port.port).join(', ')}` : ''}`,
     healthy:true,
@@ -713,10 +722,11 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
         icon={<Network size={19}/>}
         open={openSections.networking}
         onToggle={()=>toggleSection('networking')}
-        badges={[`${services.length} service`, `${formatPercentValue(sumRows(httpErrorRows))} http error`, `${formatPercentValue(sumRows(httpsErrorRows))} https error`]}
+        badges={[`${pods.length} pod`, `${services.length} service`, `${formatPercentValue(sumRows(httpErrorRows))} http error`]}
         healthy={!sumRows(httpErrorRows) && !sumRows(httpsErrorRows)}
       >
-        <div className="monitor-columns three">
+        <div className="monitor-columns four">
+          <MetricList title="Pod network" rows={podNetworkRows} empty="No pod network data" />
           <MetricList title="Service" rows={serviceRows} empty="No services" />
           <MetricList title="HTTP error%" rows={httpErrorRows.map(row=>({label:row.label,value:formatPercentValue(row.value),healthy:row.value===0}))} empty="No HTTP errors" />
           <MetricList title="HTTPS error%" rows={httpsErrorRows.map(row=>({label:row.label,value:formatPercentValue(row.value),healthy:row.value===0}))} empty="No HTTPS errors" />

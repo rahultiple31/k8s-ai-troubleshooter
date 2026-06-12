@@ -22,7 +22,7 @@ def overview(namespace: str | None = None):
         services = k8s.list_services(namespace)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
-    unhealthy_pods = [p for p in pods if p.status.phase not in ["Running", "Succeeded"]]
+    unhealthy_pods = [p for p in pods if pod_phase(p) not in ["Running", "Succeeded"]]
     not_ready_nodes = []
     for n in nodes:
         ready = next((c.status for c in n.status.conditions if c.type == "Ready"), "Unknown")
@@ -44,13 +44,7 @@ def pods(namespace: str | None = None):
         pod_list = k8s.list_pods(namespace)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
-    return [{
-        "namespace": p.metadata.namespace,
-        "name": p.metadata.name,
-        "phase": p.status.phase,
-        "node": p.spec.node_name,
-        "restarts": sum(cs.restart_count for cs in (p.status.container_statuses or [])),
-    } for p in pod_list]
+    return [pod_payload(p) for p in pod_list]
 
 @router.get("/services")
 def services(namespace: str | None = None):
@@ -165,18 +159,25 @@ def log_alerts(namespace: str | None = None):
     )
     alerts = []
     for pod in pod_list:
-        statuses = pod.status.container_statuses or []
-        restart_count = sum(status.restart_count for status in statuses)
-        if pod.status.phase in ["Running", "Succeeded"] and restart_count == 0:
+        status = getattr(pod, "status", None)
+        spec = getattr(pod, "spec", None)
+        metadata = getattr(pod, "metadata", None)
+        pod_name = getattr(metadata, "name", "")
+        pod_namespace = getattr(metadata, "namespace", "default")
+        statuses = getattr(status, "container_statuses", None) or []
+        restart_count = pod_restart_count(pod)
+        if pod_phase(pod) in ["Running", "Succeeded"] and restart_count == 0:
             continue
 
         container_names = [status.name for status in statuses] or [
-            container.name for container in (pod.spec.containers or [])
+            container.name for container in (getattr(spec, "containers", None) or [])
         ]
+        if not pod_name or not container_names:
+            continue
         for container_name in container_names[:2]:
             log_text = k8s.get_pod_logs(
-                pod.metadata.namespace,
-                pod.metadata.name,
+                pod_namespace,
+                pod_name,
                 container=container_name,
                 previous=restart_count > 0,
                 tail_lines=80,
@@ -190,8 +191,8 @@ def log_alerts(namespace: str | None = None):
                     lines[-1] if lines else "",
                 )
                 alerts.append({
-                    "namespace": pod.metadata.namespace,
-                    "pod": pod.metadata.name,
+                    "namespace": pod_namespace,
+                    "pod": pod_name,
                     "container": container_name,
                     "reason": matched,
                     "snippet": snippet[-240:],
@@ -253,6 +254,32 @@ def has_metric_rows(response):
     if not isinstance(response, dict):
         return False
     return bool(response.get("data", {}).get("result"))
+
+
+def pod_payload(pod):
+    metadata = getattr(pod, "metadata", None)
+    status = getattr(pod, "status", None)
+    spec = getattr(pod, "spec", None)
+    return {
+        "namespace": getattr(metadata, "namespace", "default"),
+        "name": getattr(metadata, "name", ""),
+        "phase": pod_phase(pod),
+        "node": getattr(spec, "node_name", None) or "",
+        "pod_ip": getattr(status, "pod_ip", None) or "",
+        "host_ip": getattr(status, "host_ip", None) or "",
+        "restarts": pod_restart_count(pod),
+    }
+
+
+def pod_phase(pod):
+    status = getattr(pod, "status", None)
+    return getattr(status, "phase", None) or "Unknown"
+
+
+def pod_restart_count(pod):
+    status = getattr(pod, "status", None)
+    statuses = getattr(status, "container_statuses", None) or []
+    return sum(getattr(container_status, "restart_count", 0) or 0 for container_status in statuses)
 
 
 def fallback_summary(fallback, dashboard):
