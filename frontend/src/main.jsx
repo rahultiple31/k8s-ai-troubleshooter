@@ -489,7 +489,6 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
     node:true,
     pod:true,
     networking:false,
-    source:false,
   });
 
   async function loadMetrics(){
@@ -502,9 +501,8 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
       setMetrics(current=>({
         cluster:clusterResult.status==='fulfilled' ? stripMetricImageData(clusterResult.value) : current.cluster,
         logAlerts:logResult.status==='fulfilled' ? logResult.value : current.logAlerts,
-        error:clusterResult.status==='rejected' ? clusterResult.reason?.message || 'Prometheus metrics unavailable' : '',
       }));
-    } catch (err) {
+    } catch {
       setMetrics(current=>current);
     }
     setLoadingMetrics(false);
@@ -589,11 +587,6 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
     value:formatBytes(row.value),
     healthy:null,
   })));
-  const sourceRows=Object.entries(cluster.errors || {}).map(([label,value])=>({
-    label,
-    value:String(value).slice(0,160),
-    healthy:false,
-  })).slice(0,8);
   const podHealthRows=pods.slice(0,8).map(pod=>({
     label:`${pod.namespace}/${pod.name}`,
     value:[
@@ -688,19 +681,6 @@ function MonitoringPanel({overview,pods,services,events,lastRefresh}){
         </div>
       </MonitoringGroup>
 
-      {(metrics.error || sourceRows.length>0) && <MonitoringGroup
-        title="Metric source"
-        icon={<AlertTriangle size={19}/>}
-        open={openSections.source}
-        onToggle={()=>toggleSection('source')}
-        badges={[cluster.prometheus?.active_url ? hostnameLabel(cluster.prometheus.active_url) : 'no prometheus', `${sourceRows.length} issue`]}
-        healthy={!metrics.error && sourceRows.length===0}
-      >
-        <div className="monitor-columns two">
-          <MetricList title="Prometheus query errors" rows={sourceRows} empty={metrics.error || 'No Prometheus query errors'} />
-          <MetricList title="Configured URLs" rows={(cluster.prometheus?.configured_urls || []).map(url=>({label:hostnameLabel(url),value:url,healthy:url===cluster.prometheus?.active_url}))} empty="No Prometheus URLs configured" />
-        </div>
-      </MonitoringGroup>}
     </div>
   </section>;
 }
@@ -869,14 +849,6 @@ function formatBytes(value){
     unitIndex+=1;
   }
   return `${size>=10 ? size.toFixed(0) : size.toFixed(1)} ${units[unitIndex]}`;
-}
-
-function hostnameLabel(url){
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return String(url || 'unknown');
-  }
 }
 
 function isMetricHealthy(value){
